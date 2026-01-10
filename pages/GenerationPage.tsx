@@ -115,7 +115,7 @@ const GenerationPage: React.FC<Props> = ({ user, models, config, onQuotaUpdate, 
         category, season, style, type: genType,
         ageGroup: genType === GenerationType.MODEL ? ageGroup : undefined,
         gender: genType === GenerationType.MODEL ? gender : undefined,
-        scene: scene || (config.scenes[season][0]),
+        scene: scene || '', // 不指定场景，让 AI 根据服装自动判断
         quality, aspectRatio, baseImages: uploadedImgs, modelImage: modelRefImage,
         ethnicity: genType === GenerationType.MODEL ? ethnicity : undefined,
         composition: genType === GenerationType.MODEL ? composition : undefined,

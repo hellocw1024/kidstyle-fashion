@@ -27,9 +27,14 @@ export const generateClothingImage = async (params: {
   
   let prompt = `
     TASK: Professional children's clothing commercial photography.
-    CATEGORY: Automatically identify and match the clothing type from reference images (T-shirt, dress, jacket, pants, etc.)
-    SEASON: Automatically determine appropriate season based on clothing style and design
+
+    INSTRUCTIONS: Analyze the reference clothing images and automatically determine:
+    1. **CATEGORY**: Identify clothing type (T-shirt, dress, jacket, pants, etc.)
+    2. **SEASON**: Determine appropriate season based on clothing style, fabric, and design
+    3. **SCENE**: Match the scene to the clothing's season and style${params.scene ? ` (User selected scene: ${params.scene})` : ' (Automatically select the most suitable scene)'}
+
     STYLE: ${params.style}
+    QUALITY: ${params.quality} - extremely high detail, commercial catalog quality.
 
     ${params.type === 'MODEL' ? `
     MODE: ON-MODEL PROFESSIONAL PHOTOSHOOT
@@ -43,11 +48,9 @@ export const generateClothingImage = async (params: {
     BACKGROUND: ${params.productBackground}
     `}
 
-    SCENE: ${params.scene || 'Minimalist professional studio background'}
-    QUALITY: ${params.quality} - extremely high detail, commercial catalog quality.
     ${params.customPrompt ? `ADDITIONAL DETAILS: ${params.customPrompt}` : ''}
 
-    REFERENCE CLOTHING: Please accurately analyze the clothing design, style, and season from the provided reference images. Render the clothing with appropriate colors, patterns, and fabric texture suitable for the identified season and category.
+    CRITICAL: Study the reference images carefully. Render the clothing with accurate colors, patterns, fabric texture, and seasonal appropriateness. The background, lighting, and atmosphere should match the identified season and style.
   `;
 
   try {

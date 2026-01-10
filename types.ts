@@ -32,7 +32,7 @@ export interface SystemConfig {
   ethnicities: string[]; // 国籍/肤色
   compositions: string[]; // 构图景别
   poses: string[]; // 姿势情绪
-  scenes: Record<Season, string[]>;
+  scenes: string[]; // 场景列表（AI会根据服装自动适配）
   productForms: string[]; // 呈现形式 (平铺/挂拍/3D)
   productFocus: string[]; // 细节聚焦
   productBackgrounds: string[]; // 背景材质
