@@ -1,0 +1,7 @@
+{
+  "name": "KidStyle AI - Children's Clothing AI Generator",
+  "description": "A comprehensive AI-driven platform for generating professional children's clothing model photos and product displays using Gemini Vision models.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
