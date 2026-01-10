@@ -1,8 +1,8 @@
 import { createClient } from '@supabase/supabase-js';
 
 // 从环境变量获取 Supabase 配置
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const supabaseUrl = process.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY;
 
 // 检查配置是否完整
 if (!supabaseUrl || !supabaseAnonKey) {
