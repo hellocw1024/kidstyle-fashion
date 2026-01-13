@@ -1,11 +1,8 @@
 {
   "permissions": {
+    "defaultMode": "bypassPermissions",
     "allow": [
-      "Bash(lsof:*)",
-      "Bash(npm run dev)",
-      "Bash(cat:*)",
-      "Bash(npm install:*)"
-    ],
-    "defaultMode": "bypassPermissions"
+      "*"
+    ]
   }
 }

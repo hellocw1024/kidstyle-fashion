@@ -12,11 +12,10 @@ export interface StoredImage {
   url: string;           // 原图 Base64
   thumbnail: string;     // 缩略图 Base64
   type: 'UPLOAD' | 'GENERATE';
-  category: string;
-  season: string;
   date: string;
   tags: string[];
   createdAt: number;     // 时间戳，用于排序
+  modelName?: string;    // AI 模型名称
 }
 
 /**
@@ -202,6 +201,6 @@ export async function getStorageInfo(): Promise<{ count: number; estimatedSize: 
  * 导出所有图片为可下载的格式
  */
 export function exportImageAsFile(image: StoredImage): { filename: string; data: string } {
-  const filename = `小红衣_${image.category}_${image.date}_${image.id}.png`;
+  const filename = `小红衣_${image.date}_${image.id}.png`;
   return { filename, data: image.url };
 }

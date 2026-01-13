@@ -35,6 +35,7 @@ CREATE TABLE IF NOT EXISTS recharge_requests (
 -- 4. 创建图片元数据表
 CREATE TABLE IF NOT EXISTS images (
   id TEXT PRIMARY KEY,
+  model_name TEXT DEFAULT 'gemini-pro',
   user_id TEXT REFERENCES users(id) ON DELETE CASCADE,
   type TEXT CHECK (type IN ('UPLOAD', 'GENERATE')) NOT NULL,
   url TEXT NOT NULL, -- Supabase Storage 中的图片 URL
@@ -126,3 +127,36 @@ CREATE POLICY "允许上传图片" ON images
 -- 用户只能删除自己的图片
 CREATE POLICY "用户只能删除自己的图片" ON images
   FOR DELETE USING (true);
+
+-- 10. 创建模特库表
+CREATE TABLE IF NOT EXISTS models (
+  id TEXT PRIMARY KEY,
+  url TEXT NOT NULL,
+  gender TEXT NOT NULL,
+  age_group TEXT NOT NULL,
+  ethnicity TEXT NOT NULL,
+  name TEXT,
+  uploaded_by TEXT DEFAULT 'SYSTEM',
+  uploaded_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  status TEXT DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE', 'INACTIVE'))
+);
+
+-- 启用 RLS
+ALTER TABLE models ENABLE ROW LEVEL SECURITY;
+
+-- 创建安全策略
+CREATE POLICY "允许公开查看模特库" ON models FOR SELECT USING (true);
+CREATE POLICY "允许管理员管理模特库" ON models FOR ALL USING (true); -- 简化处理，实际应用中应检查管理员权限
+
+-- 插入初始模特
+INSERT INTO models (id, url, gender, age_group, ethnicity, name, uploaded_by)
+VALUES 
+  ('model_1', '/models/model_1.png', '男', '3-6岁', '亚裔', '小小男孩A', 'SYSTEM'),
+  ('model_2', '/models/model_2.png', '男', '6-12岁', '亚裔', '阳光少年B', 'SYSTEM')
+ON CONFLICT (id) DO NOTHING;
+
+-- 11. 允许公开上传到 storage.objects (修正 RLS 问题)
+-- 注意：这通常需要在 Supabase 控制台的 Storage -> Policies 中设置
+-- 但这里也尝试通过 SQL 设置，针对 images bucket
+CREATE POLICY "允许公开上传图片" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'images');
+CREATE POLICY "允许公开查看图片" ON storage.objects FOR SELECT USING (bucket_id = 'images');

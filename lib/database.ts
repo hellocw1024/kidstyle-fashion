@@ -132,23 +132,56 @@ export async function updateUserQuota(userId: string, newQuota: number): Promise
  * 更新用户信息
  */
 export async function updateUser(userId: string, updates: Partial<User>): Promise<boolean> {
-  // 如果要更新密码，先进行哈希
-  const updateData = { ...updates };
-  if (updates.password) {
-    updateData.password = await hashPassword(updates.password);
-  }
+  try {
+    console.log('🔄 updateUser 开始:', { userId, updates });
 
-  const { error } = await supabase
-    .from('users')
-    .update(updateData)
-    .eq('id', userId);
+    // 如果要更新密码，先进行哈希
+    const updateData = { ...updates };
+    if (updates.password) {
+      updateData.password = await hashPassword(updates.password);
+    }
 
-  if (error) {
-    console.error('更新用户信息失败:', error);
+    const { error } = await supabase
+      .from('users')
+      .update(updateData)
+      .eq('id', userId);
+
+    if (error) {
+      console.error('❌ 更新用户信息失败:', error);
+      return false;
+    }
+
+    // ✅ 验证更新是否成功：重新读取数据
+    console.log('✅ 数据库更新命令执行成功，验证更新结果...');
+    const { data: verifyData, error: verifyError } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', userId)
+      .single();
+
+    if (verifyError || !verifyData) {
+      console.error('❌ 验证失败，无法读取更新后的数据:', verifyError);
+      return false;
+    }
+
+    console.log('✅ 验证成功，更新后的数据:', {
+      id: verifyData.id,
+      phone: verifyData.phone,
+      quota: verifyData.quota,
+      role: verifyData.role
+    });
+
+    // 检查配额是否正确更新
+    if (updates.quota !== undefined && verifyData.quota !== updates.quota) {
+      console.error('❌ 配额更新失败！期望:', updates.quota, '实际:', verifyData.quota);
+      return false;
+    }
+
+    return true;
+  } catch (err) {
+    console.error('❌ updateUser 异常:', err);
     return false;
   }
-
-  return true;
 }
 
 // ==================== 系统配置相关操作 ====================
@@ -212,11 +245,35 @@ export async function getUserImages(userId: string): Promise<ImageResource[]> {
     id: img.id,
     url: img.url,
     type: img.type as 'UPLOAD' | 'GENERATE',
-    category: img.category,
-    season: img.season,
     date: new Date(img.created_at).toISOString().split('T')[0],
     tags: img.tags || [],
-    thumbnail: img.thumbnail || undefined  // ✅ 返回缩略图字段
+    thumbnail: img.thumbnail || undefined,  // ✅ 返回缩略图字段
+    modelName: img.model_name || undefined  // ✅ 返回模型名称
+  }));
+}
+
+/**
+ * 获取所有生成的图片 (管理员统计用)
+ */
+export async function getAllImages(): Promise<ImageResource[]> {
+  const { data, error } = await supabase
+    .from('images')
+    .select('*')
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.error('获取图片列表失败:', error);
+    return [];
+  }
+
+  return data.map(img => ({
+    id: img.id,
+    url: img.url,
+    type: img.type as 'UPLOAD' | 'GENERATE',
+    date: new Date(img.created_at).toISOString().split('T')[0],
+    tags: img.tags || [],
+    thumbnail: img.thumbnail || undefined,
+    modelName: img.model_name || undefined
   }));
 }
 
@@ -232,10 +289,9 @@ export async function addImage(userId: string, image: Omit<ImageResource, 'id' |
     user_id: userId,  // ✅ 使用传入的用户 ID
     type: image.type,
     url: image.url,
-    category: image.category,
-    season: image.season,
     tags: image.tags,
-    thumbnail: image.thumbnail || null  // ✅ 添加缩略图字段
+    thumbnail: image.thumbnail || null,  // ✅ 添加缩略图字段
+    model_name: image.modelName || null  // ✅ 添加模型名称字段
   };
 
   const { data, error } = await supabase
@@ -253,11 +309,10 @@ export async function addImage(userId: string, image: Omit<ImageResource, 'id' |
     id: data.id,
     url: data.url,
     type: data.type as 'UPLOAD' | 'GENERATE',
-    category: data.category,
-    season: data.season,
     date: new Date(data.created_at).toISOString().split('T')[0],
     tags: data.tags || [],
-    thumbnail: data.thumbnail || undefined  // ✅ 返回缩略图字段
+    thumbnail: data.thumbnail || undefined,  // ✅ 返回缩略图字段
+    modelName: data.model_name || undefined  // ✅ 返回模型名称
   };
 }
 
@@ -337,13 +392,21 @@ export async function getUserRechargeRequests(userId: string): Promise<RechargeR
  * 创建充值请求
  */
 export async function createRechargeRequest(request: Omit<RechargeRequest, 'id' | 'date'>): Promise<RechargeRequest | null> {
+  console.log('🔄 createRechargeRequest 开始:', request);
+
+  // 🔑 生成唯一的充值请求 ID
+  const requestId = 'recharge_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+
   const newRequest = {
+    id: requestId,  // ✅ 添加缺失的 ID 字段
     user_id: request.userId,
     amount: request.amount,
     quota: request.quota,
     screenshot: request.screenshot,
     status: request.status
   };
+
+  console.log('📤 准备插入数据:', newRequest);
 
   const { data, error } = await supabase
     .from('recharge_requests')
@@ -352,7 +415,10 @@ export async function createRechargeRequest(request: Omit<RechargeRequest, 'id' 
     .single();
 
   if (error) {
-    console.error('创建充值请求失败:', error);
+    console.error('❌ 创建充值请求失败 - 完整错误信息:', error);
+    console.error('❌ 错误代码:', error.code);
+    console.error('❌ 错误消息:', error.message);
+    console.error('❌ 错误详情:', error.details);
     return null;
   }
 
@@ -382,6 +448,80 @@ export async function updateRechargeRequest(
 
   if (error) {
     console.error('更新充值请求失败:', error);
+    return false;
+  }
+
+  return true;
+}
+
+// ============================================
+// 模特库管理 (Model Library Management)
+// ============================================
+
+/**
+ * 获取所有模特
+ */
+export async function getAllModels(): Promise<ModelEntry[]> {
+  const { data, error } = await supabase
+    .from('models')
+    .select('*')
+    .order('uploaded_at', { ascending: false });
+
+  if (error) {
+    console.error('获取模特库失败:', error);
+    return [];
+  }
+
+  return (data || []).map(m => ({
+    id: m.id,
+    url: m.url,
+    gender: m.gender,
+    ageGroup: m.age_group,
+    ethnicity: m.ethnicity,
+    name: m.name || undefined,
+    uploadedBy: m.uploaded_by,
+    uploadedAt: m.uploaded_at,
+    status: m.status as 'ACTIVE' | 'INACTIVE'
+  }));
+}
+
+/**
+ * 添加新模特
+ */
+export async function addModel(model: ModelEntry): Promise<boolean> {
+  const { error } = await supabase
+    .from('models')
+    .insert([{
+      id: model.id,
+      url: model.url,
+      gender: model.gender,
+      age_group: model.ageGroup,
+      ethnicity: model.ethnicity,
+      name: model.name || null,
+      uploaded_by: model.uploadedBy,
+      uploaded_at: model.uploadedAt,
+      status: model.status
+    }]);
+
+  if (error) {
+    console.error('添加模特失败:', error);
+    return false;
+  }
+
+  return true;
+}
+
+/**
+ * 删除模特
+ */
+export async function deleteModelFromDb(modelId: string): Promise<boolean> {
+  const { error } = await supabase
+    .from('models')
+    .delete()
+    .eq('id', modelId);
+
+  if (error) {
+    console.error('从数据库删除模特失败:', error);
     return false;
   }
 

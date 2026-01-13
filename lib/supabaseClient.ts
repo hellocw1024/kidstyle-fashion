@@ -99,8 +99,6 @@ export interface Database {
           user_id: string;
           type: 'UPLOAD' | 'GENERATE';
           url: string;
-          category: string;
-          season: string;
           tags: string[];
           created_at: string;
         };
@@ -109,8 +107,6 @@ export interface Database {
           user_id: string;
           type: 'UPLOAD' | 'GENERATE';
           url: string;
-          category: string;
-          season: string;
           tags?: string[];
           created_at?: string;
         };
@@ -119,8 +115,6 @@ export interface Database {
           user_id?: string;
           type?: 'UPLOAD' | 'GENERATE';
           url?: string;
-          category?: string;
-          season?: string;
           tags?: string[];
           created_at?: string;
         };

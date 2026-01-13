@@ -1,0 +1,101 @@
+/* 全局基础样式 */
+:root {
+    --primary-rose: #f43f5e;
+    --primary-rose-hover: #e11d48;
+    --macaron-pink: #FFF1F2;
+    --macaron-blue: #EFF6FF;
+    --macaron-yellow: #FFFBEB;
+    --macaron-green: #F0FDF4;
+}
+
+body {
+    font-family: 'Inter', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    background-color: #fcfcfc;
+    color: #1f2937;
+    -webkit-font-smoothing: antialiased;
+}
+
+/* 极致毛玻璃特效 */
+.glass-morphism {
+    background: rgba(255, 255, 255, 0.7);
+    backdrop-filter: blur(12px) saturate(180%);
+    -webkit-backdrop-filter: blur(12px) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.07);
+}
+
+.glass-morphism-dark {
+    background: rgba(15, 23, 42, 0.8);
+    backdrop-filter: blur(12px) saturate(180%);
+    -webkit-backdrop-filter: blur(12px) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* 滚动条美化 */
+.custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 10px;
+    transition: background 0.3s;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+    display: none;
+}
+
+.no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+
+/* 微交互动效 (Micro-interactions) */
+@keyframes fadeInSlideUp {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.animate-fade-in-up {
+    animation: fadeInSlideUp 0.5s ease-out forwards;
+}
+
+.hover-glow {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.hover-glow:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 25px -5px rgba(244, 63, 94, 0.3);
+}
+
+/* 按钮点击波纹感 */
+.btn-press:active {
+    transform: scale(0.96);
+    transition: transform 0.1s;
+}
+
+/* 渐变文本 */
+.text-gradient-rose {
+    background: linear-gradient(135deg, #f43f5e 0%, #fb7185 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+}

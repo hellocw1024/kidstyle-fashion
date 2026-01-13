@@ -19,6 +19,7 @@ const App: React.FC = () => {
   const [resources, setResources] = useState<ImageResource[]>([]);
   const [models, setModels] = useState<ModelEntry[]>(MODEL_LIBRARY);
   const [systemConfig, setSystemConfig] = useState<SystemConfig>(INITIAL_CONFIG);
+  const [userCenterTab, setUserCenterTab] = useState<'RESOURCES' | 'RECHARGE' | 'HISTORY' | 'SETTINGS'>('RESOURCES');  // 控制用户中心标签页
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -27,24 +28,29 @@ const App: React.FC = () => {
         console.log('🔄 开始加载数据...');
 
         // 从 Supabase 加载数据
-        const [usersData, configData, requestsData] = await Promise.all([
+        const [usersData, configData, requestsData, modelsData] = await Promise.all([
           db.getAllUsers(),
           db.getSystemConfig(),
-          db.getAllRechargeRequests()
+          db.getAllRechargeRequests(),
+          db.getAllModels()
         ]);
 
         console.log('✅ 数据库查询完成');
 
         // 设置用户列表
         if (usersData.length > 0) {
+          console.log('✅ 从数据库加载用户数据:', usersData.length, '个用户');
+          console.log('📊 用户配额情况:', usersData.map(u => ({ phone: u.phone, quota: u.quota })));
           setAllUsers(usersData);
           // ✅ 数据库有数据，更新 localStorage 缓存
           localStorage.setItem('kidstyle_accounts', JSON.stringify(usersData));
         } else {
+          console.warn('⚠️ 数据库为空，尝试从 localStorage 恢复');
           // 如果数据库为空，从 localStorage 恢复
           const savedAccounts = localStorage.getItem('kidstyle_accounts');
           if (savedAccounts) {
             const accounts = JSON.parse(savedAccounts);
+            console.log('📂 从 localStorage 恢复用户:', accounts.length, '个');
             // 确保至少有管理员账号
             if (!accounts.some((u: User) => u.role === 'ADMIN')) {
               accounts.push({
@@ -63,7 +69,43 @@ const App: React.FC = () => {
         console.log('📝 检查系统配置...');
         if (configData && Object.keys(configData).length > 0) {
           console.log('✅ 使用数据库配置');
-          setSystemConfig(configData);
+          // 🔧 关键修复：确保配置包含所有必需字段，并验证数组类型，防止崩溃
+          const mergedConfig: any = {
+            ...INITIAL_CONFIG,
+            ...configData,
+          };
+
+          // 强制验证所有应该是数组的字段
+          const arrayFields: (keyof SystemConfig)[] = [
+            'styles', 'ageGroups', 'genders', 'ethnicities',
+            'compositions', 'poses', 'scenes', 'productForms', 'productFocus',
+            'productBackgrounds'
+          ];
+
+          arrayFields.forEach(field => {
+            if (!Array.isArray(mergedConfig[field])) {
+              console.warn(`⚠️ 配置项 ${field} 不是数组，已重置为默认值。当前值:`, mergedConfig[field]);
+              // 如果是对象且不是 null，尝试提取值
+              if (mergedConfig[field] && typeof mergedConfig[field] === 'object') {
+                try {
+                  const values = Object.values(mergedConfig[field]);
+                  // 简单检查转换后的结果是否为平面字符串数组
+                  mergedConfig[field] = Array.isArray(values[0]) ? values.flat() : values;
+                } catch (e) {
+                  mergedConfig[field] = INITIAL_CONFIG[field];
+                }
+              } else {
+                mergedConfig[field] = INITIAL_CONFIG[field];
+              }
+            }
+          });
+
+          // 检查并补充缺失的 promptTemplates
+          if (!mergedConfig.promptTemplates || typeof mergedConfig.promptTemplates !== 'object') {
+            mergedConfig.promptTemplates = INITIAL_CONFIG.promptTemplates;
+          }
+
+          setSystemConfig(mergedConfig as SystemConfig);
         } else {
           // 如果数据库没有配置，初始化默认配置
           console.log('⚙️ 初始化默认系统配置到数据库...');
@@ -81,6 +123,13 @@ const App: React.FC = () => {
           setRechargeRequests(requestsData);
         }
         console.log('✅ 充值记录设置完成');
+
+        // 设置模特库
+        console.log('👗 设置模特库...');
+        if (modelsData.length > 0) {
+          console.log('✅ 从数据库加载模特:', modelsData.length, '个');
+          setModels(modelsData);
+        }
 
         // 从 localStorage 恢复用户登录状态
         console.log('👤 检查登录状态...');
@@ -112,8 +161,6 @@ const App: React.FC = () => {
               id: img.id,
               url: img.url,
               type: img.type,
-              category: img.category,
-              season: img.season as any,
               date: img.date,
               tags: img.tags,
               thumbnail: img.thumbnail
@@ -157,11 +204,21 @@ const App: React.FC = () => {
     localStorage.setItem('kidstyle_sys_config', JSON.stringify(systemConfig));
   }, [user, rechargeRequests, models, allUsers, systemConfig]);
 
-  const updateQuota = (newQuota: number) => {
+  const updateQuota = async (newQuota: number) => {
     if (user) {
-      const updated = { ...user, quota: newQuota };
-      setUser(updated);
-      setAllUsers(prev => prev.map(u => u.id === updated.id ? updated : u));
+      // ✅ 同步更新数据库
+      const success = await db.updateUserQuota(user.id, newQuota);
+
+      if (success) {
+        // 数据库更新成功，同步更新本地 state
+        const updated = { ...user, quota: newQuota };
+        setUser(updated);
+        setAllUsers(prev => prev.map(u => u.id === updated.id ? updated : u));
+        console.log('✅ 配额已保存到数据库:', newQuota);
+      } else {
+        console.error('❌ 配额保存到数据库失败');
+        alert('配额更新失败，请重试');
+      }
     }
   };
 
@@ -270,40 +327,68 @@ const App: React.FC = () => {
           }} />
         ) : (
           (() => {
-            switch(view) {
-              case AppView.GENERATION: return <GenerationPage user={user} models={models} config={systemConfig} onQuotaUpdate={updateQuota} onAddResource={async r => {
-                // ✅ 保存到 IndexedDB（本地存储）
-                const success = await idbStorage.saveImage({
-                  id: r.id,
-                  url: r.url,
-                  thumbnail: r.thumbnail || '',
-                  type: r.type,
-                  category: r.category,
-                  season: r.season,
-                  date: r.date,
-                  tags: r.tags,
-                  createdAt: Date.now()
-                });
+            switch (view) {
+              case AppView.GENERATION: return <GenerationPage
+                user={user}
+                models={models}
+                config={systemConfig}
+                setView={setView}  // 🔑 传递页面跳转函数
+                onOpenRecharge={() => {
+                  setUserCenterTab('RECHARGE');  // 设置为充值标签页
+                  setView(AppView.USER_CENTER);  // 跳转到用户中心
+                }}
+                onQuotaUpdate={updateQuota}
+                onAddResource={async r => {
+                  // ✅ 保存到 IndexedDB（本地存储）
+                  const success = await idbStorage.saveImage({
+                    id: r.id,
+                    url: r.url,
+                    thumbnail: r.thumbnail || '',
+                    type: r.type,
+                    date: r.date,
+                    tags: r.tags,
+                    createdAt: Date.now(),
+                    modelName: r.modelName
+                  });
 
-                if (success) {
-                  // IndexedDB 保存成功，更新本地状态
-                  setResources(p => [r, ...p]);
-                  console.log('✅ 图片保存到本地成功');
-                } else {
-                  // IndexedDB 保存失败，提示用户
-                  console.error('❌ 图片保存到本地失败');
-                  alert('图片保存失败，请重试');
-                }
-              }} />;
-              case AppView.USER_CENTER: return <UserCenter user={user} onLogout={() => { setUser(null); setView(AppView.AUTH); }} onUpdateUser={async u => {
-                // 更新数据库
-                await db.updateUser(u.id, { password: u.password });
-                // 更新本地状态
-                setUser(u);
-                setAllUsers(p => p.map(x => x.id === u.id ? u : x));
-              }} resources={resources} rechargeRequests={rechargeRequests} onAddRechargeRequest={r => setRechargeRequests(p => [r, ...p])} onRemoveResource={handleRemoveResource} onToggleFavorite={handleToggleFavorite} />;
+                  if (success) {
+                    // IndexedDB 保存成功，更新本地状态
+                    setResources(p => [r, ...p]);
+                    console.log('✅ 图片保存到本地成功');
+                  } else {
+                    // IndexedDB 保存失败，提示用户
+                    console.error('❌ 图片保存到本地失败');
+                    alert('图片保存失败，请重试');
+                  }
+                }} />;
+              case AppView.USER_CENTER: return <UserCenter
+                user={user}
+                initialTab={userCenterTab}  // 🔑 传递初始标签页
+                onLogout={() => {
+                  setUser(null);
+                  setView(AppView.AUTH);
+                  setUserCenterTab('RESOURCES');  // 重置标签页
+                }}
+                onUpdateUser={async u => {
+                  // 更新数据库
+                  await db.updateUser(u.id, { password: u.password });
+                  // 更新本地状态
+                  setUser(u);
+                  setAllUsers(p => p.map(x => x.id === u.id ? u : x));
+                }} resources={resources} rechargeRequests={rechargeRequests} onAddRechargeRequest={r => setRechargeRequests(p => [r, ...p])} onRemoveResource={handleRemoveResource} onToggleFavorite={handleToggleFavorite} />;
               case AppView.HELP: return <HelpCenter />;
-              default: return <AdminPage activeTab={view} setView={setView} allUsers={allUsers} models={models} onModelsUpdate={setModels} config={systemConfig} onConfigUpdate={handleConfigUpdate} rechargeRequests={rechargeRequests} onAuditAction={handleAuditAction} />;
+              default: return <AdminPage
+                activeTab={view}
+                setView={setView}
+                allUsers={allUsers}
+                onUserUpdate={setAllUsers}  // ✅ 添加用户更新回调
+                models={models}
+                onModelsUpdate={setModels}
+                config={systemConfig}
+                onConfigUpdate={handleConfigUpdate}
+                rechargeRequests={rechargeRequests}
+                onAuditAction={handleAuditAction}
+              />;
             }
           })()
         )}

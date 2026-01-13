@@ -1,0 +1,81 @@
+{
+  "projectName": "小红衣 (XiaoHongYi) - 儿童服装AI生成平台",
+  "lastUpdate": "2026-01-11",
+  "currentVersion": "v0.0.0",
+  "status": "活跃开发中",
+
+  "techStack": {
+    "framework": "Vite + React 19 + TypeScript",
+    "backend": "Supabase (PostgreSQL)",
+    "ai": "Google Gemini API",
+    "auth": "bcrypt 密码加密",
+    "storage": "Supabase + localStorage 缓存"
+  },
+
+  "credentials": {
+    "admin": {
+      "phone": "13336831110",
+      "password": "admin",
+      "quota": 999999
+    }
+  },
+
+  "recentWork": {
+    "date": "2026-01-10",
+    "feature": "AI 提示词管理系统",
+    "description": "管理员可自定义 6 个 AI 生成提示词模板，支持占位符替换",
+    "filesModified": [
+      "types.ts",
+      "constants.tsx",
+      "services/geminiService.ts",
+      "pages/AdminPage.tsx",
+      "pages/GenerationPage.tsx"
+    ]
+  },
+
+  "completedFeatures": [
+    "✅ 用户认证系统（登录/注册，bcrypt 加密）",
+    "✅ Supabase 数据库集成",
+    "✅ AI 图片生成（3步向导流程）",
+    "✅ 真人模特模式 & 纯服装模式",
+    "✅ 配额经济系统",
+    "✅ 充值审核流程",
+    "✅ 管理员后台（4个标签页）",
+    "✅ 系统配置管理（运行时修改）",
+    "✅ AI 提示词管理系统"
+  ],
+
+  "databaseSchema": {
+    "users": "用户账号（id, phone, password, quota, role, created_at）",
+    "system_config": "系统配置键值对（key, value）",
+    "images": "图片资源（id, user_id, type, url, category, season, tags, created_at）",
+    "recharge_requests": "充值记录（id, user_id, amount, quota, screenshot, status, remark, created_at）"
+  },
+
+  "todoList": [
+    "⏳ 图片资源缩略图优化",
+    "⏳ 批量图片生成功能",
+    "⏳ 生成历史记录和统计",
+    "⏳ 用户反馈系统",
+    "⏳ 移动端适配优化"
+  ],
+
+  "knownIssues": [
+    "模特库图片使用 Blob URL，刷新后丢失（需实现持久化）",
+    "首次加载时可能需要初始化 Supabase 配置"
+  ],
+
+  "environment": {
+    "port": "3000",
+    "devServer": "npm run dev",
+    "buildCommand": "npm run build"
+  },
+
+  "contextFiles": {
+    "projectGuide": "CLAUDE.md - 项目技术文档和开发指南",
+    "devLog": "DEVELOPMENT_LOG.md - 详细开发日志",
+    "sessionSummary": ".claude-context/session-summary.json - 会话摘要（本文件）"
+  },
+
+  "howToResume": "每次新会话开始时，请先读取本文件，然后阅读 CLAUDE.md 的开发历史和 DEVELOPMENT_LOG.md 的最新记录"
+}
