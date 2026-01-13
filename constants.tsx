@@ -10,7 +10,7 @@ import {
   History,
   CreditCard
 } from 'lucide-react';
-import { SystemConfig } from './types';
+import { SystemConfig, ReferenceImage, ReferenceImageType } from './types';
 
 export const INITIAL_CONFIG: SystemConfig = {
   styles: ['可爱风', '运动风', '学院风', '轻奢风', '国风', '森系', '街头潮流'],
@@ -73,7 +73,24 @@ BACKGROUND: {{productBackground}}`,
 Scene should match the clothing's style. Lighting, colors, and atmosphere should complement the clothing design.`,
     qualityGuidance: `QUALITY: {{quality}}
 Use extremely high detail, commercial catalog quality standards.`,
-    additionalGuidance: `ADDITIONAL DETAILS: {{customPrompt}}`
+    additionalGuidance: `ADDITIONAL DETAILS: {{customPrompt}}`,
+
+    // 🔥 参考图提示词模板
+    referencePromptTemplates: {
+      enabled: true,
+      mainGuidance: `REFERENCE IMAGE GUIDANCE:
+You have been provided with a reference image alongside the clothing images. Use it as follows:
+- Reference Mode: {{mode}}
+- Extract these elements from the reference: {{elements}}
+- Apply these extracted elements to the clothing you are generating
+{{custom_instruction}}
+
+{{critical_notice}}`,
+      strictMode: `STRICTLY FOLLOW the reference style closely`,
+      flexibleMode: `Use as FLEXIBLE INSPIRATION while maintaining your own creativity`,
+      elementExtraction: `Extract and apply: {{elements}}`,
+      criticalNotice: `CRITICAL: The CLOTHING must come from the uploaded clothing images, but the STYLE/ATMOSPHERE should match the reference image.`
+    }
   }
 };
 
@@ -563,6 +580,324 @@ export const MODEL_LIBRARY: ModelEntry[] = [
     name: '中国女孩-11',
     uploadedBy: 'SYSTEM',
     uploadedAt: new Date().toISOString(),
+    status: 'ACTIVE'
+  },
+  {
+    id: 'china_girl_new_1',
+    url: '/models/girl_model_1.png',
+    gender: '女',
+    ageGroup: '3-6岁',
+    ethnicity: '亚裔',
+    name: '中国女孩-12',
+    uploadedBy: 'SYSTEM',
+    uploadedAt: new Date().toISOString(),
+    status: 'ACTIVE'
+  },
+  {
+    id: 'china_girl_new_2',
+    url: '/models/girl_model_2.png',
+    gender: '女',
+    ageGroup: '3-6岁',
+    ethnicity: '亚裔',
+    name: '中国女孩-13',
+    uploadedBy: 'SYSTEM',
+    uploadedAt: new Date().toISOString(),
+    status: 'ACTIVE'
+  },
+  {
+    id: 'china_girl_new_3',
+    url: '/models/girl_model_3.png',
+    gender: '女',
+    ageGroup: '6-12岁',
+    ethnicity: '亚裔',
+    name: '中国女孩-14',
+    uploadedBy: 'SYSTEM',
+    uploadedAt: new Date().toISOString(),
+    status: 'ACTIVE'
+  },
+  {
+    id: 'china_girl_new_4',
+    url: '/models/girl_model_4.png',
+    gender: '女',
+    ageGroup: '6-12岁',
+    ethnicity: '亚裔',
+    name: '中国女孩-15',
+    uploadedBy: 'SYSTEM',
+    uploadedAt: new Date().toISOString(),
+    status: 'ACTIVE'
+  },
+  {
+    id: 'china_girl_new_5',
+    url: '/models/girl_model_5.png',
+    gender: '女',
+    ageGroup: '6-12岁',
+    ethnicity: '亚裔',
+    name: '中国女孩-16',
+    uploadedBy: 'SYSTEM',
+    uploadedAt: new Date().toISOString(),
+    status: 'ACTIVE'
+  },
+  {
+    id: 'china_girl_new_6',
+    url: '/models/girl_model_6.png',
+    gender: '女',
+    ageGroup: '3-6岁',
+    ethnicity: '亚裔',
+    name: '中国女孩-17',
+    uploadedBy: 'SYSTEM',
+    uploadedAt: new Date().toISOString(),
+    status: 'ACTIVE'
+  },
+  {
+    id: 'china_girl_new_7',
+    url: '/models/girl_model_7.png',
+    gender: '女',
+    ageGroup: '6-12岁',
+    ethnicity: '亚裔',
+    name: '中国女孩-18',
+    uploadedBy: 'SYSTEM',
+    uploadedAt: new Date().toISOString(),
+    status: 'ACTIVE'
+  },
+  {
+    id: 'china_girl_new_8',
+    url: '/models/girl_model_8.png',
+    gender: '女',
+    ageGroup: '6-12岁',
+    ethnicity: '亚裔',
+    name: '中国女孩-19',
+    uploadedBy: 'SYSTEM',
+    uploadedAt: new Date().toISOString(),
+    status: 'ACTIVE'
+  },
+  {
+    id: 'china_girl_new_9',
+    url: '/models/girl_model_9.png',
+    gender: '女',
+    ageGroup: '6-12岁',
+    ethnicity: '亚裔',
+    name: '中国女孩-20',
+    uploadedBy: 'SYSTEM',
+    uploadedAt: new Date().toISOString(),
+    status: 'ACTIVE'
+  },
+  {
+    id: 'china_girl_new_10',
+    url: '/models/girl_model_10.png',
+    gender: '女',
+    ageGroup: '3-6岁',
+    ethnicity: '亚裔',
+    name: '中国女孩-21',
+    uploadedBy: 'SYSTEM',
+    uploadedAt: new Date().toISOString(),
+    status: 'ACTIVE'
+  }
+];
+
+// 内置参考图库
+export const REFERENCE_IMAGE_LIBRARY: ReferenceImage[] = [
+  // === 户外场景 - 公园 ===
+  {
+    id: 'ref_park_running_boy',
+    url: '/references/park_running_boy.jpg',
+    name: '公园奔跑-男童',
+    type: ReferenceImageType.COMPREHENSIVE,
+    metadata: {
+      scene: '公园绿地',
+      pose: '奔跑跳跃',
+      mood: '开心活泼',
+      ageGroup: '6-12岁',
+      gender: '男',
+      style: '运动风',
+      tags: ['户外', '阳光', '动态', '活力']
+    },
+    source: 'SYSTEM',
+    createdAt: new Date().toISOString(),
+    usageCount: 0,
+    status: 'ACTIVE'
+  },
+  {
+    id: 'ref_park_sitting_girl',
+    url: '/references/park_sitting_girl.jpg',
+    name: '公园草地-女童坐姿',
+    type: ReferenceImageType.COMPREHENSIVE,
+    metadata: {
+      scene: '公园绿地',
+      pose: '可爱坐姿',
+      mood: '温柔甜美',
+      ageGroup: '3-6岁',
+      gender: '女',
+      style: '可爱风',
+      tags: ['户外', '自然', '甜美', '静态']
+    },
+    source: 'SYSTEM',
+    createdAt: new Date().toISOString(),
+    usageCount: 0,
+    status: 'ACTIVE'
+  },
+
+  // === 海滩场景 ===
+  {
+    id: 'ref_beach_playing',
+    url: '/references/beach_playing.jpg',
+    name: '沙滩玩耍-儿童',
+    type: ReferenceImageType.COMPREHENSIVE,
+    metadata: {
+      scene: '沙滩海滨',
+      pose: '玩耍互动',
+      mood: '开心自由',
+      ageGroup: '3-6岁',
+      gender: '中性',
+      style: '休闲风',
+      tags: ['海滩', '夏日', '自由', '玩耍']
+    },
+    source: 'SYSTEM',
+    createdAt: new Date().toISOString(),
+    usageCount: 0,
+    status: 'ACTIVE'
+  },
+
+  // === 室内场景 - 摄影棚 ===
+  {
+    id: 'ref_studio_standing_boy',
+    url: '/references/studio_standing_boy.jpg',
+    name: '摄影棚站立-男童',
+    type: ReferenceImageType.SCENE,
+    metadata: {
+      scene: '简约摄影棚',
+      pose: '静态站立',
+      mood: '酷酷的',
+      ageGroup: '6-12岁',
+      gender: '男',
+      style: '轻奢风',
+      tags: ['纯色背景', '专业', '简洁', '时尚']
+    },
+    source: 'SYSTEM',
+    createdAt: new Date().toISOString(),
+    usageCount: 0,
+    status: 'ACTIVE'
+  },
+  {
+    id: 'ref_studio_girl_pose',
+    url: '/references/studio_girl_pose.jpg',
+    name: '摄影棚多姿势-女童',
+    type: ReferenceImageType.POSE,
+    metadata: {
+      scene: '简约摄影棚',
+      pose: '多种姿势',
+      mood: '甜美可爱',
+      ageGroup: '3-6岁',
+      gender: '女',
+      style: '可爱风',
+      tags: ['专业', '多姿势', '商业', '标准']
+    },
+    source: 'SYSTEM',
+    createdAt: new Date().toISOString(),
+    usageCount: 0,
+    status: 'ACTIVE'
+  },
+
+  // === 室内场景 - 家居 ===
+  {
+    id: 'ref_home_bedroom',
+    url: '/references/home_bedroom.jpg',
+    name: '温馨卧室-儿童',
+    type: ReferenceImageType.COMPREHENSIVE,
+    metadata: {
+      scene: '家居卧室',
+      pose: '自然互动',
+      mood: '温馨舒适',
+      ageGroup: '3-6岁',
+      gender: '中性',
+      style: '温馨风',
+      tags: ['家居', '温馨', '生活化', '舒适']
+    },
+    source: 'SYSTEM',
+    createdAt: new Date().toISOString(),
+    usageCount: 0,
+    status: 'ACTIVE'
+  },
+
+  // === 校园场景 ===
+  {
+    id: 'ref_school_playground',
+    url: '/references/school_playground.jpg',
+    name: '校园操场-儿童',
+    type: ReferenceImageType.COMPREHENSIVE,
+    metadata: {
+      scene: '校园操场',
+      pose: '奔跑游戏',
+      mood: '活泼开朗',
+      ageGroup: '6-12岁',
+      gender: '中性',
+      style: '学院风',
+      tags: ['校园', '青春', '活力', '运动']
+    },
+    source: 'SYSTEM',
+    createdAt: new Date().toISOString(),
+    usageCount: 0,
+    status: 'ACTIVE'
+  },
+
+  // === 特殊表情参考 ===
+  {
+    id: 'ref_expression_smile',
+    url: '/references/expression_smile.jpg',
+    name: '甜美微笑表情',
+    type: ReferenceImageType.EXPRESSION,
+    metadata: {
+      mood: '甜美微笑',
+      tags: ['微笑', '甜美', '亲和', '自然']
+    },
+    source: 'SYSTEM',
+    createdAt: new Date().toISOString(),
+    usageCount: 0,
+    status: 'ACTIVE'
+  },
+  {
+    id: 'ref_expression_shy',
+    url: '/references/expression_shy.jpg',
+    name: '害羞表情',
+    type: ReferenceImageType.EXPRESSION,
+    metadata: {
+      mood: '害羞可爱',
+      tags: ['害羞', '可爱', '腼腆', '萌']
+    },
+    source: 'SYSTEM',
+    createdAt: new Date().toISOString(),
+    usageCount: 0,
+    status: 'ACTIVE'
+  },
+
+  // === 特殊动作参考 ===
+  {
+    id: 'ref_pose_jump',
+    url: '/references/pose_jump.jpg',
+    name: '跳跃动作',
+    type: ReferenceImageType.POSE,
+    metadata: {
+      pose: '跳跃动作',
+      mood: '活力四射',
+      tags: ['跳跃', '动态', '活力', '动感']
+    },
+    source: 'SYSTEM',
+    createdAt: new Date().toISOString(),
+    usageCount: 0,
+    status: 'ACTIVE'
+  },
+  {
+    id: 'ref_pose_sitting_floor',
+    url: '/references/pose_sitting_floor.jpg',
+    name: '地坐姿势',
+    type: ReferenceImageType.POSE,
+    metadata: {
+      pose: '地坐姿势',
+      mood: '自然放松',
+      tags: ['坐姿', '地面', '放松', '自然']
+    },
+    source: 'SYSTEM',
+    createdAt: new Date().toISOString(),
+    usageCount: 0,
     status: 'ACTIVE'
   }
 ];

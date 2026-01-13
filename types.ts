@@ -1,6 +1,7 @@
 
 export enum AppView {
   AUTH = 'AUTH',
+  INSPIRATION = 'INSPIRATION',
   GENERATION = 'GENERATION',
   USER_CENTER = 'USER_CENTER',
   ADMIN = 'ADMIN',
@@ -38,6 +39,16 @@ export interface SystemConfig {
     qualityGuidance: string; // 画质指导
     additionalGuidance: string; // 额外指导
   };
+
+  // 🔥 参考图提示词模板
+  referencePromptTemplates: {
+    enabled: boolean; // 是否启用参考图功能
+    mainGuidance: string; // 主要指导（支持占位符：{{mode}}, {{elements}}）
+    strictMode: string; // 严格模式描述
+    flexibleMode: string; // 灵活模式描述
+    elementExtraction: string; // 元素提取指导（支持占位符：{{elements}}）
+    criticalNotice: string; // 关键提示语
+  };
 }
 
 export interface User {
@@ -67,4 +78,100 @@ export interface RechargeRequest {
   screenshot: string;
   status: 'PENDING' | 'APPROVED' | 'REJECTED';
   date: string;
+}
+
+// 参考图类型
+export enum ReferenceImageType {
+  SCENE = 'SCENE',           // 场景参考（背景、环境、光影）
+  POSE = 'POSE',             // 动作参考（姿势、构图）
+  EXPRESSION = 'EXPRESSION', // 表情参考（情绪、面部表情）
+  COMPREHENSIVE = 'COMPREHENSIVE' // 综合参考（全部元素）
+}
+
+// 参考图条目
+export interface ReferenceImage {
+  id: string;
+  url: string;               // 图片URL（base64或远程URL）
+  thumbnail?: string;        // 缩略图
+  name: string;              // 图片名称
+  type: ReferenceImageType;  // 参考类型
+
+  // 元数据（便于搜索和筛选）
+  metadata: {
+    scene?: string;          // 场景：公园、海滩、室内...
+    pose?: string;           // 动作：站立、坐着、跳跃...
+    mood?: string;           // 情绪：开心、害羞、酷...
+    ageGroup?: string;       // 适用年龄：3-6岁、6-12岁...
+    gender?: string;         // 性别：男、女
+    style?: string;          // 风格：可爱、运动、学院...
+    tags?: string[];         // 自定义标签
+  };
+
+  source: 'SYSTEM' | 'USER'; // 来源：系统内置 or 用户上传
+  createdBy?: string;        // 创建者ID（用户上传时）
+  createdAt: string;
+  usageCount: number;        // 使用次数
+  status: 'ACTIVE' | 'INACTIVE';
+}
+
+// 参考图使用配置
+export interface ReferenceConfig {
+  enabled: boolean;
+  referenceId?: string;      // 选择的参考图ID
+  referenceMode: 'STRICT' | 'FLEXIBLE'; // STRICT: 严格模仿, FLEXIBLE: 灵活参考
+
+  // 提取哪些元素（多选）
+  extractElements: {
+    background: boolean;     // 提取背景
+    pose: boolean;           // 提取动作
+    expression: boolean;     // 提取表情
+    lighting: boolean;       // 提取光影
+    composition: boolean;    // 提取构图
+  };
+
+  customInstruction?: string; // 额外说明：例如"保留参考图的背景，但改用站立姿势"
+}
+
+// 生成模板
+export interface GenerationTemplate {
+  id: string;
+  name: string;                    // 模板名称：如"韩系春款-3岁女童"
+  description?: string;            // 模板描述
+  userId: string;                  // 创建者ID
+  createdAt: string;
+  updatedAt: string;
+  useCount: number;                // 使用次数
+
+  // 配置参数
+  config: {
+    type: GenerationType;          // MODEL | PRODUCT
+    style: string;
+    quality: string;
+    aspectRatio: string;
+    scene?: string;
+
+    // MODEL模式专用
+    gender?: string;
+    ageGroup?: string;
+    ethnicity?: string;
+    pose?: string;
+    composition?: string;
+
+    // PRODUCT模式专用
+    productForm?: string;
+    productFocus?: string;
+    productBackground?: string;
+
+    customPrompt?: string;
+
+    // 模特参考（可选）
+    modelRef?: {
+      type: 'library' | 'custom';   // 来自模特库 or 自定义上传
+      modelId?: string;             // 如果是library类型
+      imageUrl?: string;            // 如果是custom类型（存储base64）
+    };
+  };
+
+  // 预览图（可选）：该模板最近一次生成的效果图
+  previewImage?: string;
 }

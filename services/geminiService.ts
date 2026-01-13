@@ -39,7 +39,7 @@ async function fetchImageAsBase64(url: string): Promise<string> {
 }
 
 // 获取提示词模板的辅助函数
-function buildPrompt(params: {
+export function buildPrompt(params: {
   style: string;
   quality: string;
   scene?: string;
@@ -53,8 +53,47 @@ function buildPrompt(params: {
   productFocus?: string;
   productBackground?: string;
   customPrompt?: string;
+  // 🔥 新增：参考图配置
+  referenceConfig?: {
+    enabled: boolean;
+    referenceMode: 'STRICT' | 'FLEXIBLE';
+    extractElements: {
+      background: boolean;
+      pose: boolean;
+      expression: boolean;
+      lighting: boolean;
+      composition: boolean;
+    };
+    customInstruction?: string;
+  };
 }, promptTemplates: typeof INITIAL_CONFIG.promptTemplates) {
   const { mainPrompt, modelModePrompt, productModePrompt, sceneGuidance, qualityGuidance, additionalGuidance } = promptTemplates;
+
+  // === 🔥 构建参考图指导（使用可配置模板）===
+  let referenceGuidance = '';
+  if (params.referenceConfig?.enabled && promptTemplates.referencePromptTemplates) {
+    const { referenceMode, extractElements, customInstruction } = params.referenceConfig;
+    const refTemplates = promptTemplates.referencePromptTemplates;
+
+    // 构建元素列表
+    const elementsToExtract = [];
+    if (extractElements.background) elementsToExtract.push('background environment');
+    if (extractElements.pose) elementsToExtract.push('pose and body position');
+    if (extractElements.expression) elementsToExtract.push('facial expression and mood');
+    if (extractElements.lighting) elementsToExtract.push('lighting and atmosphere');
+    if (extractElements.composition) elementsToExtract.push('composition and framing');
+    const elementsStr = elementsToExtract.length > 0 ? elementsToExtract.join(', ') : 'all visual elements';
+
+    // 获取模式描述
+    const modeDescription = referenceMode === 'STRICT' ? refTemplates.strictMode : refTemplates.flexibleMode;
+
+    // 使用可配置模板，替换占位符
+    referenceGuidance = refTemplates.mainGuidance
+      .replace(/{{mode}}/g, modeDescription)
+      .replace(/{{elements}}/g, elementsStr)
+      .replace(/{{custom_instruction}}/g, customInstruction ? `- Additional instruction: ${customInstruction}` : '')
+      .replace(/{{critical_notice}}/g, refTemplates.criticalNotice);
+  }
 
   // 替换模板中的占位符
   let modePrompt = params.type === 'MODEL' ? modelModePrompt : productModePrompt;
@@ -73,13 +112,18 @@ function buildPrompt(params: {
 
   let customInfo = params.customPrompt ? additionalGuidance.replace(/{{customPrompt}}/g, params.customPrompt) : '';
 
-  // 组装最终提示词
+  // === 组装最终提示词 ===
   let prompt = mainPrompt.replace(/{{style}}/g, params.style)
     .replace(/{{quality}}/g, params.quality)
     .replace(/{{scene}}/g, params.scene ? params.scene : 'automatically determined')
     .replace(/{{mode_prompt}}/g, modePrompt)
     .replace(/{{scene_guidance}}/g, sceneInfo)
     .replace(/{{custom_prompt}}/g, customInfo);
+
+  // 🔥 添加参考图指导（放在最前面，确保AI优先理解）
+  if (referenceGuidance) {
+    prompt = referenceGuidance + '\n\n' + prompt;
+  }
 
   return prompt;
 }
@@ -102,6 +146,20 @@ export const generateClothingImage = async (params: {
   baseImages?: string[];
   modelImage?: string;
   promptTemplates?: typeof INITIAL_CONFIG.promptTemplates;
+  // 🔥 新增：参考图参数
+  referenceImage?: string;
+  referenceConfig?: {
+    enabled: boolean;
+    referenceMode: 'STRICT' | 'FLEXIBLE';
+    extractElements: {
+      background: boolean;
+      pose: boolean;
+      expression: boolean;
+      lighting: boolean;
+      composition: boolean;
+    };
+    customInstruction?: string;
+  };
 }) => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const isHighQuality = params.quality === '4K' || params.quality === '2K';
@@ -110,7 +168,10 @@ export const generateClothingImage = async (params: {
   // 使用配置的提示词模板，如果没有提供则使用默认模板
   const templates = params.promptTemplates || INITIAL_CONFIG.promptTemplates;
 
-  const prompt = buildPrompt(params, templates);
+  const prompt = buildPrompt({
+    ...params,
+    referenceConfig: params.referenceConfig
+  }, templates);
 
   try {
     const contents: any = { parts: [{ text: prompt }] };
@@ -152,6 +213,30 @@ export const generateClothingImage = async (params: {
       console.log('✅ 模特参考图已添加到 API 请求中');
     } else {
       console.log('ℹ️ 未提供模特参考图');
+    }
+
+    // 🔥 3️⃣ 参考图（如果提供）
+    if (params.referenceImage && params.referenceConfig?.enabled) {
+      console.log('🖼️ 添加参考图:', params.referenceImage);
+      const b64 = params.referenceImage.startsWith('data:') ? params.referenceImage : await fetchImageAsBase64(params.referenceImage);
+
+      if (!b64.startsWith('data:')) {
+        console.error('❌ 参考图转换失败，未得到 Base64 格式:', b64);
+        throw new Error(`参考图转换失败: ${params.referenceImage}`);
+      }
+
+      console.log('✅ 参考图已转换为 Base64 (长度:', b64.length, '字符)');
+
+      contents.parts.push({
+        inlineData: {
+          mimeType: 'image/jpeg',
+          data: b64.includes('base64,') ? b64.split(',')[1] : b64
+        }
+      });
+
+      console.log('✅ 参考图已添加到 API 请求中');
+    } else {
+      console.log('ℹ️ 未提供参考图或参考功能未启用');
     }
 
     console.log('📤 发送请求到 Gemini API, 模型:', modelName);

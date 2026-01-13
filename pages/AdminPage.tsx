@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import {
-  Users, CreditCard, ShoppingBag, TrendingUp, Check, X, Eye, Plus, Trash2, Save, Camera, Palette, Box, Maximize, UserCheck, Shirt, Upload, Filter, Search, MessageSquare, ChevronRight
+  Users, CreditCard, ShoppingBag, TrendingUp, Check, X, Eye, Plus, Trash2, Save, Camera, Palette, Box, Maximize, UserCheck, Shirt, Upload, Filter, Search, MessageSquare, ChevronRight, Image as ImageIcon
 } from 'lucide-react';
 import { RechargeRequest, AppView, User, SystemConfig } from '../types.ts';
 import { ModelEntry } from '../constants.tsx';
@@ -30,8 +30,12 @@ const AdminPage: React.FC<Props> = ({ activeTab, setView, allUsers, onUserUpdate
   const [selectedFiles, setSelectedFiles] = useState<FileList | null>(null);
   const [previewImages, setPreviewImages] = useState<string[]>([]);
   const [promptModalOpen, setPromptModalOpen] = useState(false);
-  const [editingPromptTemplate, setEditingPromptTemplate] = useState<keyof SystemConfig['promptTemplates'] | null>(null);
+
+  // 🔥 修改编辑提示词类型以包含参考图提示词
+  type PromptTemplateKey = keyof SystemConfig['promptTemplates'] | keyof SystemConfig['referencePromptTemplates'];
+  const [editingPromptTemplate, setEditingPromptTemplate] = useState<PromptTemplateKey | null>(null);
   const [promptValue, setPromptValue] = useState('');
+  const [isEditingReferencePrompt, setIsEditingReferencePrompt] = useState(false);
 
   // 用户管理相关 state
   const [userSearch, setUserSearch] = useState('');
@@ -101,17 +105,37 @@ const AdminPage: React.FC<Props> = ({ activeTab, setView, allUsers, onUserUpdate
     setNewValue('');
   };
 
-  const handlePromptSave = (templateKey: keyof SystemConfig['promptTemplates']) => {
-    onConfigUpdate({
-      ...config,
-      promptTemplates: {
-        ...config.promptTemplates,
-        [templateKey]: promptValue
-      }
-    });
-    setEditingPromptTemplate(null);
-    setPromptValue('');
-    setPromptModalOpen(false);
+  const handlePromptSave = (templateKey: PromptTemplateKey) => {
+    const isReferencePrompt = Object.keys(config.referencePromptTemplates || {}).includes(templateKey);
+
+    if (isReferencePrompt) {
+      // 保存参考图提示词
+      const newConfig = {
+        ...config,
+        referencePromptTemplates: {
+          ...config.referencePromptTemplates,
+          [templateKey]: promptValue
+        }
+      };
+      onConfigUpdate(newConfig);
+      setEditingPromptTemplate(null);
+      setPromptValue('');
+      setIsEditingReferencePrompt(false);
+      setSaveResultModal({ show: true, success: true, message: `参考图提示词模板 "${templateKey}" 已更新` });
+    } else {
+      // 保存 AI 提示词
+      const newConfig = {
+        ...config,
+        promptTemplates: {
+          ...config.promptTemplates,
+          [templateKey]: promptValue
+        }
+      };
+      onConfigUpdate(newConfig);
+      setEditingPromptTemplate(null);
+      setPromptValue('');
+      setSaveResultModal({ show: true, success: true, message: `提示词模板 "${templateKey}" 已更新` });
+    }
   };
 
   const handleRemoveItem = (key: keyof SystemConfig, index: number) => {
@@ -255,11 +279,37 @@ const AdminPage: React.FC<Props> = ({ activeTab, setView, allUsers, onUserUpdate
     { key: 'promptTemplates', label: 'AI 提示词管理', icon: <MessageSquare size={18} />, desc: '自定义 AI 生成提示词模板' }
   ];
 
+  // 🔥 定义内部 Tab 配置
+  const tabs = [
+    { id: AppView.STATS, label: '运营看板', icon: <TrendingUp size={18} /> },
+    { id: AppView.CONFIG, label: '深度配置', icon: <Palette size={18} /> },
+    { id: AppView.RESOURCES, label: '资源管理', icon: <ShoppingBag size={18} /> },
+    { id: AppView.AUDIT, label: '充值审核', icon: <CreditCard size={18} /> },
+    { id: AppView.USERS, label: '用户管理', icon: <Users size={18} /> }
+  ];
+
   return (
     <div className="container mx-auto px-4 py-8 max-w-7xl">
       <div className="mb-10">
         <h1 className="text-3xl font-black text-gray-800">后台管理中心</h1>
         <p className="text-xs text-gray-400 font-bold uppercase tracking-widest mt-1">深度参数与全局配置</p>
+      </div>
+
+      {/* 🔥 Tab 导航栏 */}
+      <div className="flex items-center space-x-2 mb-8 overflow-x-auto pb-2">
+        {tabs.map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => setView(tab.id)}
+            className={`flex items-center space-x-2 px-4 py-3 rounded-xl font-bold text-sm transition-all whitespace-nowrap ${currentTab === tab.id
+                ? 'bg-rose-500 text-white shadow-lg'
+                : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'
+              }`}
+          >
+            {tab.icon}
+            <span>{tab.label}</span>
+          </button>
+        ))}
       </div>
 
       {currentTab === AppView.STATS && (
@@ -904,15 +954,29 @@ const AdminPage: React.FC<Props> = ({ activeTab, setView, allUsers, onUserUpdate
                   <div className="mb-4">
                     <h4 className="text-lg font-bold text-gray-800 mb-2">
                       {
-                        editingPromptTemplate === 'mainPrompt' ? '主提示词' :
-                          editingPromptTemplate === 'modelModePrompt' ? '真人模特模式提示词' :
-                            editingPromptTemplate === 'productModePrompt' ? '纯服装展示模式提示词' :
-                              editingPromptTemplate === 'sceneGuidance' ? '场景指导' :
-                                editingPromptTemplate === 'qualityGuidance' ? '画质指导' :
-                                  '额外指导'
+                        isEditingReferencePrompt ? (
+                          editingPromptTemplate === 'mainGuidance' ? '主要指导模板' :
+                            editingPromptTemplate === 'strictMode' ? '严格模式描述' :
+                              editingPromptTemplate === 'flexibleMode' ? '灵活模式描述' :
+                                editingPromptTemplate === 'elementExtraction' ? '元素提取指导' :
+                                  editingPromptTemplate === 'criticalNotice' ? '关键提示语' :
+                                    editingPromptTemplate
+                        ) : (
+                          editingPromptTemplate === 'mainPrompt' ? '主提示词' :
+                            editingPromptTemplate === 'modelModePrompt' ? '真人模特模式提示词' :
+                              editingPromptTemplate === 'productModePrompt' ? '纯服装展示模式提示词' :
+                                editingPromptTemplate === 'sceneGuidance' ? '场景指导' :
+                                  editingPromptTemplate === 'qualityGuidance' ? '画质指导' :
+                                    '额外指导'
+                        )
                       }
                     </h4>
-                    <p className="text-xs text-gray-400">使用 {`{{变量名}}`} 格式插入占位符</p>
+                    <p className="text-xs text-gray-400">
+                      {isEditingReferencePrompt
+                        ? `使用 {{"{{变量名}}"}} 格式插入占位符：{{mode}}, {{elements}}, {{custom_instruction}}, {{critical_notice}}`
+                        : `使用 {{"{{变量名}}"}} 格式插入占位符`
+                      }
+                    </p>
                   </div>
                   <textarea
                     value={promptValue}
@@ -925,6 +989,7 @@ const AdminPage: React.FC<Props> = ({ activeTab, setView, allUsers, onUserUpdate
                       onClick={() => {
                         setEditingPromptTemplate(null);
                         setPromptValue('');
+                        setIsEditingReferencePrompt(false);
                       }}
                       className="flex-1 py-3 bg-gray-100 text-gray-600 rounded-xl font-bold"
                     >
@@ -941,62 +1006,137 @@ const AdminPage: React.FC<Props> = ({ activeTab, setView, allUsers, onUserUpdate
               ) : (
                 // 模板列表
                 <div className="flex-1 overflow-y-auto">
-                  <div className="space-y-3">
-                    {config.promptTemplates && Object.keys(config.promptTemplates).length > 0 ? (
-                      Object.entries(config.promptTemplates).map(([key, value]) => {
-                        const templateValue = value as string;
-                        return (
-                          <div
-                            key={key}
-                            onClick={() => {
-                              setEditingPromptTemplate(key as keyof SystemConfig['promptTemplates']);
-                              setPromptValue(templateValue);
-                            }}
-                            className="p-6 bg-white rounded-3xl border border-gray-100 shadow-sm hover:shadow-xl hover:border-rose-400 cursor-pointer group transition-all relative overflow-hidden"
-                          >
-                            <div className="absolute top-0 right-0 w-24 h-24 bg-rose-500/5 blur-3xl rounded-full -mr-8 -mt-8 group-hover:bg-rose-500/10 transition-colors" />
-                            <div className="flex items-start justify-between relative z-10">
-                              <div className="flex-1">
-                                <div className="flex items-center space-x-3 mb-3">
-                                  <div className="p-2.5 bg-rose-50 text-rose-500 rounded-xl group-hover:scale-110 transition-transform">
-                                    <MessageSquare size={20} />
+                  <div className="space-y-6">
+                    {/* AI 提示词部分 */}
+                    <div>
+                      <h4 className="text-sm font-bold text-gray-700 mb-3 flex items-center">
+                        <MessageSquare size={16} className="mr-2 text-rose-500" />
+                        AI 生成提示词
+                      </h4>
+                      <div className="space-y-3">
+                        {config.promptTemplates && Object.keys(config.promptTemplates).length > 0 ? (
+                          Object.entries(config.promptTemplates).map(([key, value]) => {
+                            const templateValue = value as string;
+                            return (
+                              <div
+                                key={key}
+                                onClick={() => {
+                                  setEditingPromptTemplate(key as keyof SystemConfig['promptTemplates']);
+                                  setPromptValue(templateValue);
+                                  setIsEditingReferencePrompt(false);
+                                }}
+                                className="p-6 bg-white rounded-3xl border border-gray-100 shadow-sm hover:shadow-xl hover:border-rose-400 cursor-pointer group transition-all relative overflow-hidden"
+                              >
+                                <div className="absolute top-0 right-0 w-24 h-24 bg-rose-500/5 blur-3xl rounded-full -mr-8 -mt-8 group-hover:bg-rose-500/10 transition-colors" />
+                                <div className="flex items-start justify-between relative z-10">
+                                  <div className="flex-1">
+                                    <div className="flex items-center space-x-3 mb-3">
+                                      <div className="p-2.5 bg-rose-50 text-rose-500 rounded-xl group-hover:scale-110 transition-transform">
+                                        <MessageSquare size={20} />
+                                      </div>
+                                      <div>
+                                        <h5 className="text-sm font-black text-gray-800">
+                                          {
+                                            key === 'mainPrompt' ? '核心任务提示词 (Main Strategy)' :
+                                              key === 'modelModePrompt' ? '真人模特渲染模型 (Model Engine)' :
+                                                key === 'productModePrompt' ? '产品展示增强 (Product Logic)' :
+                                                  key === 'sceneGuidance' ? '环境光效指导 (Atmosphere)' :
+                                                    key === 'qualityGuidance' ? '画质与精度控制 (Resolution)' :
+                                                      key === 'additionalGuidance' ? '细节微调规则 (Fine-tuning)' :
+                                                        key
+                                          }
+                                        </h5>
+                                        <div className="flex items-center space-x-2 mt-0.5">
+                                          <span className="text-[8px] font-black px-2 py-0.5 bg-gray-100 text-gray-400 rounded-full uppercase tracking-tighter">System Template</span>
+                                          <span className={`text-[8px] font-black px-2 py-0.5 rounded-full uppercase tracking-tighter ${templateValue.length > 100 ? 'bg-green-50 text-green-500' : 'bg-blue-50 text-blue-500'}`}>
+                                            {templateValue.length > 100 ? 'Advanced' : 'Standard'}
+                                          </span>
+                                        </div>
+                                      </div>
+                                    </div>
+                                    <div className="bg-gray-50/50 rounded-2xl p-4 border border-gray-100/50">
+                                      <p className="text-[11px] text-gray-500 leading-relaxed font-mono line-clamp-2">
+                                        {templateValue}
+                                      </p>
+                                    </div>
                                   </div>
-                                  <div>
-                                    <h5 className="text-sm font-black text-gray-800">
-                                      {
-                                        key === 'mainPrompt' ? '核心任务提示词 (Main Strategy)' :
-                                          key === 'modelModePrompt' ? '真人模特渲染模型 (Model Engine)' :
-                                            key === 'productModePrompt' ? '产品展示增强 (Product Logic)' :
-                                              key === 'sceneGuidance' ? '环境光效指导 (Atmosphere)' :
-                                                key === 'qualityGuidance' ? '画质与精度控制 (Resolution)' :
-                                                  key === 'additionalGuidance' ? '细节微调规则 (Fine-tuning)' :
-                                                    key
-                                      }
-                                    </h5>
-                                    <div className="flex items-center space-x-2 mt-0.5">
-                                      <span className="text-[8px] font-black px-2 py-0.5 bg-gray-100 text-gray-400 rounded-full uppercase tracking-tighter">System Template</span>
-                                      <span className={`text-[8px] font-black px-2 py-0.5 rounded-full uppercase tracking-tighter ${templateValue.length > 100 ? 'bg-green-50 text-green-500' : 'bg-blue-50 text-blue-500'}`}>
-                                        {templateValue.length > 100 ? 'Advanced' : 'Standard'}
-                                      </span>
+                                  <div className="ml-4 p-2 text-gray-300 group-hover:text-rose-500 transition-colors">
+                                    <ChevronRight size={20} />
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })
+                        ) : (
+                          <div className="text-center py-8">
+                            <p className="text-gray-400 text-sm">暂无提示词模板配置</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* 🔥 参考图提示词部分 */}
+                    {config.referencePromptTemplates?.enabled && (
+                      <div>
+                        <h4 className="text-sm font-bold text-gray-700 mb-3 flex items-center">
+                          <ImageIcon size={16} className="mr-2 text-purple-500" />
+                          参考图提示词
+                        </h4>
+                        <div className="space-y-3">
+                          {Object.entries(config.referencePromptTemplates)
+                            .filter(([key]) => key !== 'enabled')
+                            .map(([key, value]) => {
+                              const templateValue = value as string;
+                              return (
+                                <div
+                                  key={key}
+                                  onClick={() => {
+                                    setEditingPromptTemplate(key as keyof SystemConfig['referencePromptTemplates']);
+                                    setPromptValue(templateValue);
+                                    setIsEditingReferencePrompt(true);
+                                  }}
+                                  className="p-6 bg-white rounded-3xl border border-gray-100 shadow-sm hover:shadow-xl hover:border-purple-400 cursor-pointer group transition-all relative overflow-hidden"
+                                >
+                                  <div className="absolute top-0 right-0 w-24 h-24 bg-purple-500/5 blur-3xl rounded-full -mr-8 -mt-8 group-hover:bg-purple-500/10 transition-colors" />
+                                  <div className="flex items-start justify-between relative z-10">
+                                    <div className="flex-1">
+                                      <div className="flex items-center space-x-3 mb-3">
+                                        <div className="p-2.5 bg-purple-50 text-purple-500 rounded-xl group-hover:scale-110 transition-transform">
+                                          <ImageIcon size={20} />
+                                        </div>
+                                        <div>
+                                          <h5 className="text-sm font-black text-gray-800">
+                                            {
+                                              key === 'mainGuidance' ? '主要指导模板 (Main Guidance)' :
+                                                key === 'strictMode' ? '严格模式描述 (Strict Mode)' :
+                                                  key === 'flexibleMode' ? '灵活模式描述 (Flexible Mode)' :
+                                                    key === 'elementExtraction' ? '元素提取指导 (Element Extraction)' :
+                                                      key === 'criticalNotice' ? '关键提示语 (Critical Notice)' :
+                                                        key
+                                            }
+                                          </h5>
+                                          <div className="flex items-center space-x-2 mt-0.5">
+                                            <span className="text-[8px] font-black px-2 py-0.5 bg-purple-100 text-purple-500 rounded-full uppercase tracking-tighter">Reference Template</span>
+                                            <span className={`text-[8px] font-black px-2 py-0.5 rounded-full uppercase tracking-tighter ${templateValue.length > 100 ? 'bg-green-50 text-green-500' : 'bg-blue-50 text-blue-500'}`}>
+                                              {templateValue.length > 100 ? 'Advanced' : 'Standard'}
+                                            </span>
+                                          </div>
+                                        </div>
+                                      </div>
+                                      <div className="bg-gray-50/50 rounded-2xl p-4 border border-gray-100/50">
+                                        <p className="text-[11px] text-gray-500 leading-relaxed font-mono line-clamp-2">
+                                          {templateValue}
+                                        </p>
+                                      </div>
+                                    </div>
+                                    <div className="ml-4 p-2 text-gray-300 group-hover:text-purple-500 transition-colors">
+                                      <ChevronRight size={20} />
                                     </div>
                                   </div>
                                 </div>
-                                <div className="bg-gray-50/50 rounded-2xl p-4 border border-gray-100/50">
-                                  <p className="text-[11px] text-gray-500 leading-relaxed font-mono line-clamp-2">
-                                    {templateValue}
-                                  </p>
-                                </div>
-                              </div>
-                              <div className="ml-4 p-2 text-gray-300 group-hover:text-rose-500 transition-colors">
-                                <ChevronRight size={20} />
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })
-                    ) : (
-                      <div className="text-center py-8">
-                        <p className="text-gray-400 text-sm">暂无提示词模板配置</p>
+                              );
+                            })}
+                        </div>
                       </div>
                     )}
                   </div>
@@ -1004,9 +1144,9 @@ const AdminPage: React.FC<Props> = ({ activeTab, setView, allUsers, onUserUpdate
               )}
             </div>
           </div>
-        )
-      }
+        )}
 
+      {/* 保存结果提示模态框 */}
       {saveResultModal.show && (
         <div className="fixed inset-0 z-[400] flex items-center justify-center p-6">
           <div className="absolute inset-0 bg-black/70 backdrop-blur-md"></div>

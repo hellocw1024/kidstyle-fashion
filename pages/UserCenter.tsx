@@ -2,7 +2,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { User, ImageResource, RechargeRequest } from '../types.ts';
 // Fixed: Changed ShieldLock to ShieldCheck as ShieldLock is not a valid export from lucide-react. Also removed unused Share2.
-import { Heart, Package, Search, Filter, Trash2, Download, Plus, ArrowUpCircle, Upload, X, Check, Maximize2, Settings, ShieldCheck, Lock, Eye, EyeOff, Loader2, FolderOpen } from 'lucide-react';
+import { Heart, Package, Search, Filter, Trash2, Download, Plus, ArrowUpCircle, Upload, X, Check, Maximize2, Settings, ShieldCheck, Lock, Eye, EyeOff, Loader2, FolderOpen, Sparkles } from 'lucide-react';
 import { RECHARGE_OPTIONS } from '../constants.tsx';
 import { uploadImage } from '../lib/storage.ts';
 import * as db from '../lib/database';
@@ -18,10 +18,11 @@ interface Props {
   onAddRechargeRequest: (req: RechargeRequest) => void;
   onRemoveResource: (id: string) => void;
   onToggleFavorite: (id: string) => void;
+  onRemake: (resource: ImageResource) => void; // 🔥 新增 Remake 回调
   initialTab?: 'RESOURCES' | 'RECHARGE' | 'HISTORY' | 'SETTINGS';  // 初始标签页
 }
 
-const UserCenter: React.FC<Props> = ({ user, onLogout, onUpdateUser, resources, rechargeRequests, onAddRechargeRequest, onRemoveResource, onToggleFavorite, initialTab = 'RESOURCES' }) => {
+const UserCenter: React.FC<Props> = ({ user, onLogout, onUpdateUser, resources, rechargeRequests, onAddRechargeRequest, onRemoveResource, onToggleFavorite, onRemake, initialTab = 'RESOURCES' }) => {
   const [activeTab, setActiveTab] = useState<'RESOURCES' | 'RECHARGE' | 'HISTORY' | 'SETTINGS'>(initialTab);
   const [subTab, setSubTab] = useState<'CLOTHES' | 'IMAGES' | 'FAVS'>('IMAGES');
   const [showRecharge, setShowRecharge] = useState(false);
@@ -47,7 +48,7 @@ const UserCenter: React.FC<Props> = ({ user, onLogout, onUpdateUser, resources, 
   const [displayCount, setDisplayCount] = useState(20); // 初始显示 20 张
   const [isLoadingMore, setIsLoadingMore] = useState(false);
 
-  
+
 
   // ✅ 导出状态
   const [isExporting, setIsExporting] = useState(false);
@@ -586,6 +587,17 @@ const UserCenter: React.FC<Props> = ({ user, onLogout, onUpdateUser, resources, 
                           >
                             <Trash2 size={16} />
                           </button>
+                          {/* 🔥 Make Similar Button */}
+                          {res.type === 'GENERATE' && (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); onRemake(res); }}
+                              className="p-2 bg-white/90 backdrop-blur rounded-full text-purple-500 shadow-lg hover:bg-purple-500 hover:text-white transition-all group/btn"
+                              title="生成同款 (Remake)"
+                            >
+                              <Sparkles size={16} fill="currentColor" className="opacity-0 group-hover/btn:opacity-100 transition-opacity absolute inset-0 m-auto pointer-events-none" />
+                              <Sparkles size={16} />
+                            </button>
+                          )}
                         </div>
                       </div>
                     ))}
