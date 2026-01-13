@@ -53,6 +53,17 @@ const GenerationPage: React.FC<Props> = ({ user, models, config, setView, onOpen
     const files = Array.from(e.target.files || []) as File[];
     const filesToUpload = files.slice(0, 5 - uploadedImgs.length);
 
+    // 🚀 优化：立即预加载 MediaPipe 模型（与文件处理并行）
+    const preloadPromise = (async () => {
+      try {
+        const { loadMediaPipe, loadImageClassifier } = await import('../lib/mediaPipeLoader');
+        await Promise.all([loadMediaPipe(), loadImageClassifier()]);
+        console.log('✅ MediaPipe 模型预加载完成');
+      } catch (err) {
+        console.warn('⚠️ MediaPipe 预加载失败，将在验证时再次尝试:', err);
+      }
+    })();
+
     for (const file of filesToUpload) {
       try {
         // ✅ Step 1: 基础校验
@@ -71,6 +82,9 @@ const GenerationPage: React.FC<Props> = ({ user, models, config, setView, onOpen
 
         // ✅ Step 2: AI 内容校验（服装识别）
         try {
+          // 等待预加载完成（如果还没完成的话）
+          await preloadPromise;
+
           const imgElement = await fileToImageElement(file);
           const aiResult = await validateWithAI(imgElement, 'clothing');
 
@@ -124,6 +138,17 @@ const GenerationPage: React.FC<Props> = ({ user, models, config, setView, onOpen
     const file = e.target.files?.[0];
     if (!file) return;
 
+    // 🚀 优化：立即预加载 MediaPipe 人脸检测模型（与文件处理并行）
+    const preloadPromise = (async () => {
+      try {
+        const { loadMediaPipe } = await import('../lib/mediaPipeLoader');
+        await loadMediaPipe();
+        console.log('✅ MediaPipe 人脸检测模型预加载完成');
+      } catch (err) {
+        console.warn('⚠️ MediaPipe 预加载失败，将在验证时再次尝试:', err);
+      }
+    })();
+
     try {
       // ✅ Step 1: 基础校验
       const { validateBasic, fileToImageElement, validateWithAI } = await import('../lib/imageValidator');
@@ -146,6 +171,9 @@ const GenerationPage: React.FC<Props> = ({ user, models, config, setView, onOpen
 
         // ✅ Step 2: AI 校验（人脸检测）
         try {
+          // 等待预加载完成（如果还没完成的话）
+          await preloadPromise;
+
           const imgElement = await fileToImageElement(file);
           const aiResult = await validateWithAI(imgElement, 'model');
 
