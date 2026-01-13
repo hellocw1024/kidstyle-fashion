@@ -11,5 +11,8 @@ export default defineConfig({
     'process.env.API_KEY': '"AIzaSyDzSffszX2ra3s0WmsVgIlSS3TitpMPCpg"',
     'process.env.VITE_SUPABASE_URL': '"https://cqjskmeodznouiixdrok.supabase.co"',
     'process.env.VITE_SUPABASE_ANON_KEY': '"sb_publishable_K26cSK7CSEV61FS56ea8mw_eUN7O92F"'
+  },
+  optimizeDeps: {
+    exclude: ['@mediapipe/tasks-vision']
   }
 });

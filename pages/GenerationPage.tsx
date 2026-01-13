@@ -55,6 +55,40 @@ const GenerationPage: React.FC<Props> = ({ user, models, config, setView, onOpen
 
     for (const file of filesToUpload) {
       try {
+        // ✅ Step 1: 基础校验
+        const { validateBasic, fileToImageElement, validateWithAI } = await import('../lib/imageValidator');
+        const basicResult = await validateBasic(file, 'clothing');
+
+        if (!basicResult.valid) {
+          alert(`❌ ${basicResult.reason}\n\n${basicResult.suggestions?.join('\n') || ''}`);
+          continue; // 跳过这个文件
+        }
+
+        if (basicResult.level === 'warning') {
+          const proceed = confirm(`⚠️ ${basicResult.reason}\n\n${basicResult.suggestions?.join('\n') || ''}\n\n是否继续使用？`);
+          if (!proceed) continue;
+        }
+
+        // ✅ Step 2: AI 内容校验（服装识别）
+        try {
+          const imgElement = await fileToImageElement(file);
+          const aiResult = await validateWithAI(imgElement, 'clothing');
+
+          if (!aiResult.valid) {
+            alert(`❌ AI 检测: ${aiResult.reason}\n\n${aiResult.suggestions?.join('\n') || ''}`);
+            continue;
+          }
+
+          if (aiResult.level === 'warning') {
+            const proceed = confirm(`⚠️ AI 检测: ${aiResult.reason}\n\n${aiResult.suggestions?.join('\n') || ''}\n\n是否继续使用？`);
+            if (!proceed) continue;
+          }
+
+          console.log('✅ 服装照片校验通过:', aiResult.reason);
+        } catch (error) {
+          console.warn('AI 校验失败，跳过:', error);
+        }
+
         // 直接使用 base64，不再上传到 Storage
         const reader = new FileReader();
         reader.onload = async (ev) => {
@@ -88,15 +122,55 @@ const GenerationPage: React.FC<Props> = ({ user, models, config, setView, onOpen
 
   const handleModelUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
+    if (!file) return;
+
+    try {
+      // ✅ Step 1: 基础校验
+      const { validateBasic, fileToImageElement, validateWithAI } = await import('../lib/imageValidator');
+      const basicResult = await validateBasic(file, 'model');
+
+      if (!basicResult.valid) {
+        alert(`❌ ${basicResult.reason}\n\n${basicResult.suggestions?.join('\n') || ''}`);
+        return;
+      }
+
+      if (basicResult.level === 'warning') {
+        const proceed = confirm(`⚠️ ${basicResult.reason}\n\n${basicResult.suggestions?.join('\n') || ''}\n\n是否继续使用？`);
+        if (!proceed) return;
+      }
+
       // 直接使用 base64，不再上传到 Storage
       const reader = new FileReader();
-      reader.onload = (ev) => {
+      reader.onload = async (ev) => {
         const base64 = ev.target?.result as string;
+
+        // ✅ Step 2: AI 校验（人脸检测）
+        try {
+          const imgElement = await fileToImageElement(file);
+          const aiResult = await validateWithAI(imgElement, 'model');
+
+          if (!aiResult.valid) {
+            alert(`❌ AI 检测: ${aiResult.reason}\n\n${aiResult.suggestions?.join('\n') || ''}`);
+            return;
+          }
+
+          if (aiResult.level === 'warning') {
+            const proceed = confirm(`⚠️ AI 检测: ${aiResult.reason}\n\n${aiResult.suggestions?.join('\n') || ''}\n\n是否继续使用？`);
+            if (!proceed) return;
+          }
+
+          console.log('✅ 模特照片校验通过:', aiResult.reason);
+        } catch (error) {
+          console.warn('AI 校验失败，跳过:', error);
+        }
+
         setCustomModelImg(base64);
       };
       reader.readAsDataURL(file);
       setSelectedModelId(null);
+    } catch (error) {
+      console.error('处理模特照片失败:', error);
+      alert('处理照片失败，请重试');
     }
   };
 
@@ -262,20 +336,51 @@ const GenerationPage: React.FC<Props> = ({ user, models, config, setView, onOpen
                         <input type="file" ref={modelInputRef} onChange={handleModelUpload} className="hidden" accept="image/*" />
                       </div>
                       <div className="relative group">
-                        <div className="w-32 h-40 rounded-xl border-2 border-dashed border-gray-200 flex items-center justify-center bg-white overflow-hidden">
-                          {selectedModelUrl ? <img src={selectedModelUrl} className="w-full h-full object-cover" /> : <Plus size={24} className="text-gray-300" />}
+                        <div
+                          className="w-32 h-40 rounded-xl border-2 border-dashed border-gray-200 flex items-center justify-center bg-white overflow-hidden cursor-pointer hover:border-rose-400 transition-all relative"
+                          onClick={() => selectedModelUrl && setPreviewImg(selectedModelUrl)}
+                        >
+                          {selectedModelUrl ? (
+                            <>
+                              <img src={selectedModelUrl} className="w-full h-full object-cover" />
+                              {/* 悬停时显示的放大图标 */}
+                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                <div className="bg-white/90 rounded-full p-3 transform group-hover:scale-110 transition-transform">
+                                  <Maximize2 size={24} className="text-rose-500" />
+                                </div>
+                              </div>
+                            </>
+                          ) : (
+                            <Plus size={24} className="text-gray-300" />
+                          )}
                         </div>
                         {selectedModelUrl && (
-                          <button
-                            onClick={() => {
-                              setSelectedModelId(null);
-                              setCustomModelImg(null);
-                            }}
-                            className="absolute -top-2 -right-2 w-6 h-6 bg-rose-500 text-white rounded-full flex items-center justify-center shadow-lg hover:bg-rose-600 transition-colors"
-                            title="清除模特参考图"
-                          >
-                            <X size={14} />
-                          </button>
+                          <>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedModelId(null);
+                                setCustomModelImg(null);
+                              }}
+                              className="absolute -top-2 -right-2 w-6 h-6 bg-rose-500 text-white rounded-full flex items-center justify-center shadow-lg hover:bg-rose-600 transition-colors z-10"
+                              title="清除模特参考图"
+                            >
+                              <X size={14} />
+                            </button>
+                            {/* 悬停放大预览 */}
+                            <div className="absolute left-full ml-4 top-0 opacity-0 group-hover:opacity-100 pointer-events-none transition-all duration-300 z-50">
+                              <div className="relative">
+                                <img
+                                  src={selectedModelUrl}
+                                  className="w-64 h-80 object-cover rounded-2xl shadow-2xl border-4 border-rose-500"
+                                  alt="模特预览"
+                                />
+                                <div className="absolute top-2 left-2 px-2 py-1 bg-black/70 text-white text-xs rounded-lg">
+                                  悬停预览
+                                </div>
+                              </div>
+                            </div>
+                          </>
                         )}
                       </div>
                     </div>
@@ -559,7 +664,7 @@ const GenerationPage: React.FC<Props> = ({ user, models, config, setView, onOpen
 
             <div className="grid grid-cols-3 md:grid-cols-6 lg:grid-cols-8 gap-4 max-h-[500px] overflow-y-auto custom-scrollbar pr-2">
               {filteredModels.map(m => (
-                <div key={m.id} onClick={() => { setSelectedModelId(m.id); setCustomModelImg(null); setIsModelLibraryOpen(false); }} className={`aspect-[3/4] rounded-2xl overflow-hidden cursor-pointer border-4 transition-all hover:scale-105 group ${selectedModelId === m.id ? 'border-rose-500 shadow-xl' : 'border-transparent'}`}>
+                <div key={m.id} onClick={() => { setSelectedModelId(m.id); setCustomModelImg(null); setIsModelLibraryOpen(false); }} className={`relative aspect-[3/4] rounded-2xl overflow-hidden cursor-pointer border-4 transition-all hover:scale-105 group ${selectedModelId === m.id ? 'border-rose-500 shadow-xl' : 'border-transparent'}`}>
                   <img src={m.url} className="w-full h-full object-cover" />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
                     <div className="absolute bottom-0 left-0 right-0 p-2">
