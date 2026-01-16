@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { AppView, User, RechargeRequest, ImageResource, SystemConfig } from './types.ts';
 import { MODEL_LIBRARY, ModelEntry, INITIAL_CONFIG } from './constants.tsx';
-import GenerationPage from './pages/GenerationPage.tsx';
+
 import UserCenter from './pages/UserCenter.tsx';
 import AdminPage from './pages/AdminPage.tsx';
 import AuthPage from './pages/AuthPage.tsx';
@@ -14,15 +14,17 @@ import * as db from './lib/database';
 import * as idbStorage from './lib/indexedDBStorage';
 
 const App: React.FC = () => {
-  const [view, setView] = useState<AppView>(AppView.AUTH);
+  const [view, setView] = useState<AppView>(AppView.HOME);
+  const [initialMode, setInitialMode] = useState<string | undefined>(undefined);
   const [user, setUser] = useState<User | null>(null);
   const [allUsers, setAllUsers] = useState<User[]>([]);
   const [rechargeRequests, setRechargeRequests] = useState<RechargeRequest[]>([]);
   const [resources, setResources] = useState<ImageResource[]>([]);
-  const [models, setModels] = useState<ModelEntry[]>(MODEL_LIBRARY);
+  const [models, setModels] = useState<ModelEntry[]>([]);
+  const [referenceImages, setReferenceImages] = useState<any[]>([]);  // 参考图库
   const [systemConfig, setSystemConfig] = useState<SystemConfig>(INITIAL_CONFIG);
-  const [userCenterTab, setUserCenterTab] = useState<'RESOURCES' | 'RECHARGE' | 'HISTORY' | 'SETTINGS'>('RESOURCES');  // 控制用户中心标签页
-  const [remakeTarget, setRemakeTarget] = useState<ImageResource | null>(null); // 🔥 Remake 目标资源
+  const [userCenterTab, setUserCenterTab] = useState<'RESOURCES' | 'RECHARGE'>('RESOURCES');  // 控制用户中心标签页
+  const [remakeData, setRemakeData] = useState<import('./types').RemakeData | null>(null); // 🔥 "做同款"数据
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -30,15 +32,77 @@ const App: React.FC = () => {
       try {
         console.log('🔄 开始加载数据...');
 
-        // 从 Supabase 加载数据
-        const [usersData, configData, requestsData, modelsData] = await Promise.all([
-          db.getAllUsers(),
-          db.getSystemConfig(),
-          db.getAllRechargeRequests(),
-          db.getAllModels()
-        ]);
+        // 从 Supabase 加载数据 (改为分步加载，避免一个失败导致全部失败)
 
-        console.log('✅ 数据库查询完成');
+        // 1. 加载用户
+        let usersData: any[] = [];
+        try {
+          usersData = await db.getAllUsers();
+        } catch (e) {
+          console.error('❌ 加载用户失败:', e);
+        }
+
+        // 2. 加载配置
+        let configData: any = null;
+        try {
+          configData = await db.getSystemConfig();
+        } catch (e) {
+          console.error('❌ 加载配置失败:', e);
+        }
+
+        // 3. 加载充值记录
+        let requestsData: any[] = [];
+        try {
+          requestsData = await db.getAllRechargeRequests();
+        } catch (e) {
+          console.error('❌ 加载充值记录失败:', e);
+        }
+
+        // 4. 加载模特
+        let modelsData: any[] = [];
+        try {
+          modelsData = await db.getAllModels();
+        } catch (e) {
+          console.error('❌ 加载模特失败:', e);
+        }
+
+        // 5. 加载参考图
+        let referenceImagesData: any[] = [];
+        try {
+          // 🚨 紧急修复：绕过 db.getAllReferenceImages()，直接在 App.tsx 中查询
+          // 这里的逻辑经过 Test Fetch 验证是有效的
+          const { supabase } = await import('./lib/supabaseClient');
+          console.log('🖼️ App.tsx: 正在直接查询 reference_images...');
+
+          const { data, error } = await supabase
+            .from('reference_images')
+            .select('*');
+
+          if (error) {
+            console.error('❌ App.tsx 直接查询失败:', error);
+          } else if (data) {
+            console.log('✅ App.tsx 直接查询成功，数量:', data.length);
+            // 手动映射数据结构
+            referenceImagesData = data.map(r => ({
+              id: r.id,
+              url: r.url,
+              type: r.type,
+              tags: r.tags || [],
+              name: r.name || undefined,
+              uploadedBy: r.uploaded_by,
+              uploadedAt: r.uploaded_at,
+              status: r.status as 'ACTIVE' | 'INACTIVE'
+            }));
+            // 按照上传时间倒序排序 (新图在前)
+            referenceImagesData.sort((a, b) => {
+              const dateA = new Date(a.uploadedAt || 0).getTime();
+              const dateB = new Date(b.uploadedAt || 0).getTime();
+              return dateB - dateA;
+            });
+          }
+        } catch (e) {
+          console.error('❌ 加载参考图失败 (Inline):', e);
+        }
 
         // 设置用户列表
         if (usersData.length > 0) {
@@ -81,7 +145,7 @@ const App: React.FC = () => {
           // 强制验证所有应该是数组的字段
           const arrayFields: (keyof SystemConfig)[] = [
             'styles', 'ageGroups', 'genders', 'ethnicities',
-            'compositions', 'poses', 'scenes', 'productForms', 'productFocus',
+            'compositions', 'poses', 'emotions', 'scenes', 'productForms', 'productFocus',
             'productBackgrounds'
           ];
 
@@ -143,6 +207,19 @@ const App: React.FC = () => {
         if (modelsData.length > 0) {
           console.log('✅ 从数据库加载模特:', modelsData.length, '个');
           setModels(modelsData);
+        } else {
+          console.log('ℹ️ 数据库中无模特数据，请在后台管理中导入');
+          setModels([]);
+        }
+
+        // 设置参考图库
+        console.log('🖼️ 设置参考图库...');
+        if (referenceImagesData.length > 0) {
+          console.log('✅ 从数据库加载参考图:', referenceImagesData.length, '张');
+          setReferenceImages(referenceImagesData);
+        } else {
+          console.log('ℹ️ 数据库中无参考图数据');
+          setReferenceImages([]);
         }
 
         // 从 localStorage 恢复用户登录状态
@@ -352,37 +429,81 @@ const App: React.FC = () => {
           >
             {(() => {
               switch (view) {
-                case AppView.INSPIRATION: return <HomePage />;
-                case AppView.GENERATION: return <GenerationPage
-                  user={user}
-                  models={models}
-                  config={systemConfig}
-                  setView={setView}
-                  onOpenRecharge={() => {
-                    setUserCenterTab('RECHARGE');
-                    setView(AppView.USER_CENTER);
-                  }}
-                  remakeTarget={remakeTarget}
-                  onClearRemakeTarget={() => setRemakeTarget(null)}
-                  onQuotaUpdate={updateQuota}
-                  onAddResource={async r => {
-                    // ... existing save logic ...
-                    const success = await idbStorage.saveImage({
-                      id: r.id,
-                      url: r.url,
-                      thumbnail: r.thumbnail || '',
-                      type: r.type,
-                      date: r.date,
-                      tags: r.tags,
-                      createdAt: Date.now(),
-                      modelName: r.modelName
-                    });
-                    if (success) {
-                      setResources(p => [r, ...p]);
-                    } else {
-                      alert('图片保存失败，请重试');
-                    }
-                  }} />;
+                case AppView.HOME:
+                case AppView.INSPIRATION:
+                  return <HomePage
+                    models={MODEL_LIBRARY}
+                    user={user}
+                    config={systemConfig}
+                    setView={setView}
+                    onOpenRecharge={() => {
+                      setUserCenterTab('RECHARGE');
+                      setView(AppView.USER_CENTER);
+                    }}
+                    remakeData={remakeData}
+                    onClearRemakeData={() => setRemakeData(null)}
+                    onQuotaUpdate={updateQuota}
+                    initialMode={initialMode}
+                    resources={resources}
+                    onAddResource={async r => {
+                      // ... existing save logic ...
+                      const success = await idbStorage.saveImage({
+                        id: r.id,
+                        url: r.url,
+                        thumbnail: r.thumbnail || '',
+                        type: r.type,
+                        date: r.date,
+                        tags: r.tags,
+                        createdAt: Date.now(),
+                        modelName: r.modelName
+                      });
+                      if (success) {
+                        setResources(p => [r, ...p]);
+                      } else {
+                        alert('图片保存失败，请重试');
+                      }
+                    }}
+                    onNavigate={(view, mode) => {
+                      setView(view);
+                      if (mode) {
+                        setInitialMode(mode);
+                      }
+                    }}
+                  />;
+                case AppView.GENERATION:
+                  // 将生成页请求重定向到首页（统一工作台）
+                  return <HomePage
+                    models={MODEL_LIBRARY}
+                    user={user}
+                    config={systemConfig}
+                    setView={setView}
+                    onOpenRecharge={() => {
+                      setUserCenterTab('RECHARGE');
+                      setView(AppView.USER_CENTER);
+                    }}
+                    remakeData={remakeData}
+                    onClearRemakeData={() => setRemakeData(null)}
+                    onQuotaUpdate={updateQuota}
+                    initialMode={initialMode}
+                    resources={resources}
+                    onAddResource={async r => {
+                      const success = await idbStorage.saveImage({
+                        id: r.id,
+                        url: r.url,
+                        thumbnail: r.thumbnail || '',
+                        type: r.type,
+                        date: r.date,
+                        tags: r.tags,
+                        createdAt: Date.now(),
+                        modelName: r.modelName
+                      });
+                      if (success) {
+                        setResources(p => [r, ...p]);
+                      } else {
+                        alert('图片保存失败，请重试');
+                      }
+                    }}
+                  />;
                 case AppView.USER_CENTER: return <UserCenter
                   user={user}
                   initialTab={userCenterTab}
@@ -402,8 +523,12 @@ const App: React.FC = () => {
                   onRemoveResource={handleRemoveResource}
                   onToggleFavorite={handleToggleFavorite}
                   onRemake={(res) => {
-                    setRemakeTarget(res);
-                    setView(AppView.GENERATION); // Or Inspiration if we want
+                    setRemakeData({
+                      referenceImage: res,
+                      newClothing: null,
+                      options: { complete: true, scene: false, pose: false }
+                    });
+                    setView(AppView.HOME); // Or Inspiration if we want
                   }}
                 />;
                 case AppView.HELP: return <HelpCenter />;
@@ -414,6 +539,8 @@ const App: React.FC = () => {
                   onUserUpdate={setAllUsers}
                   models={models}
                   onModelsUpdate={setModels}
+                  referenceImages={referenceImages}
+                  onReferenceImagesUpdate={setReferenceImages}
                   config={systemConfig}
                   onConfigUpdate={handleConfigUpdate}
                   rechargeRequests={rechargeRequests}

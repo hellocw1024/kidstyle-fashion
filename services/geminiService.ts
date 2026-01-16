@@ -66,23 +66,26 @@ export function buildPrompt(params: {
     };
     customInstruction?: string;
   };
-}, promptTemplates: typeof INITIAL_CONFIG.promptTemplates) {
-  const { mainPrompt, modelModePrompt, productModePrompt, sceneGuidance, qualityGuidance, additionalGuidance } = promptTemplates;
+}, promptTemplates: typeof INITIAL_CONFIG.promptTemplates, referencePromptTemplates?: typeof INITIAL_CONFIG.referencePromptTemplates) {
+  const { mainPrompt, modelModePrompt, productModePrompt, sceneGuidance, qualityGuidance, additionalGuidance, autoModeInstructions } = promptTemplates;
 
   // === 🔥 构建参考图指导（使用可配置模板）===
   let referenceGuidance = '';
-  if (params.referenceConfig?.enabled && promptTemplates.referencePromptTemplates) {
+  if (params.referenceConfig?.enabled && referencePromptTemplates && referencePromptTemplates.enabled) {
     const { referenceMode, extractElements, customInstruction } = params.referenceConfig;
-    const refTemplates = promptTemplates.referencePromptTemplates;
+    const refTemplates = referencePromptTemplates;
 
-    // 构建元素列表
+    // 🔥 使用配置的关键词构建元素列表
+    const keywords = refTemplates.extractionKeywords || INITIAL_CONFIG.referencePromptTemplates.extractionKeywords;
+
     const elementsToExtract = [];
-    if (extractElements.background) elementsToExtract.push('background environment');
-    if (extractElements.pose) elementsToExtract.push('pose and body position');
-    if (extractElements.expression) elementsToExtract.push('facial expression and mood');
-    if (extractElements.lighting) elementsToExtract.push('lighting and atmosphere');
-    if (extractElements.composition) elementsToExtract.push('composition and framing');
-    const elementsStr = elementsToExtract.length > 0 ? elementsToExtract.join(', ') : 'all visual elements';
+    if (extractElements.background) elementsToExtract.push(keywords.background);
+    if (extractElements.pose) elementsToExtract.push(keywords.pose);
+    if (extractElements.expression) elementsToExtract.push(keywords.expression);
+    if (extractElements.lighting) elementsToExtract.push(keywords.lighting);
+    if (extractElements.composition) elementsToExtract.push(keywords.composition);
+
+    const elementsStr = elementsToExtract.length > 0 ? elementsToExtract.join(', ') : keywords.all;
 
     // 获取模式描述
     const modeDescription = referenceMode === 'STRICT' ? refTemplates.strictMode : refTemplates.flexibleMode;
@@ -97,9 +100,23 @@ export function buildPrompt(params: {
 
   // 替换模板中的占位符
   let modePrompt = params.type === 'MODEL' ? modelModePrompt : productModePrompt;
-  modePrompt = modePrompt.replace(/{{gender}}/g, params.gender || '')
-    .replace(/{{ageGroup}}/g, params.ageGroup || '')
-    .replace(/{{ethnicity}}/g, params.ethnicity || '')
+
+  // 🔥 智能处理：如果是空值（Auto模式），则让AI根据服装自动判断
+  // 使用配置中的指令
+  const instructions = autoModeInstructions || INITIAL_CONFIG.promptTemplates.autoModeInstructions;
+
+  // 🛡️ 兼容性处理：如果检测到旧的硬编码默认值组合，则视为 Auto 模式
+  // (用户反馈即使未选择也会出现这些值，可能是旧状态残留)
+  // (用户反馈即使未选择也会出现这些值，可能是旧状态残留)
+  // const isLegacyDefault = params.gender === 'boy' && params.ageGroup === '3-5' && params.ethnicity === 'asian';
+
+  const genderInstruction = params.gender ? (params.gender === 'boy' ? 'boy' : 'girl') : instructions.gender;
+  const ageInstruction = params.ageGroup || instructions.ageGroup;
+  const ethnicityInstruction = params.ethnicity || instructions.ethnicity;
+
+  modePrompt = modePrompt.replace(/{{gender}}/g, genderInstruction)
+    .replace(/{{ageGroup}}/g, ageInstruction)
+    .replace(/{{ethnicity}}/g, ethnicityInstruction)
     .replace(/{{pose}}/g, params.pose || '')
     .replace(/{{composition}}/g, params.composition || '')
     .replace(/{{productForm}}/g, params.productForm || '')
@@ -115,7 +132,7 @@ export function buildPrompt(params: {
   // === 组装最终提示词 ===
   let prompt = mainPrompt.replace(/{{style}}/g, params.style)
     .replace(/{{quality}}/g, params.quality)
-    .replace(/{{scene}}/g, params.scene ? params.scene : 'automatically determined')
+    .replace(/{{scene}}/g, params.scene ? params.scene : instructions.scene)
     .replace(/{{mode_prompt}}/g, modePrompt)
     .replace(/{{scene_guidance}}/g, sceneInfo)
     .replace(/{{custom_prompt}}/g, customInfo);
@@ -146,6 +163,7 @@ export const generateClothingImage = async (params: {
   baseImages?: string[];
   modelImage?: string;
   promptTemplates?: typeof INITIAL_CONFIG.promptTemplates;
+  referencePromptTemplates?: typeof INITIAL_CONFIG.referencePromptTemplates;
   // 🔥 新增：参考图参数
   referenceImage?: string;
   referenceConfig?: {
@@ -160,6 +178,8 @@ export const generateClothingImage = async (params: {
     };
     customInstruction?: string;
   };
+  // 🔥 新增：覆盖提示词（所见即所得）
+  overridePrompt?: string;
 }) => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const isHighQuality = params.quality === '4K' || params.quality === '2K';
@@ -167,11 +187,15 @@ export const generateClothingImage = async (params: {
 
   // 使用配置的提示词模板，如果没有提供则使用默认模板
   const templates = params.promptTemplates || INITIAL_CONFIG.promptTemplates;
+  const refTemplates = params.referencePromptTemplates || INITIAL_CONFIG.referencePromptTemplates;
 
-  const prompt = buildPrompt({
-    ...params,
-    referenceConfig: params.referenceConfig
-  }, templates);
+  // 🔥 核心逻辑：如果有 overridePrompt，直接使用，实现"所见即所得"
+  const prompt = params.overridePrompt
+    ? params.overridePrompt
+    : buildPrompt({
+      ...params,
+      referenceConfig: params.referenceConfig
+    }, templates, refTemplates);
 
   try {
     const contents: any = { parts: [{ text: prompt }] };
@@ -287,6 +311,88 @@ export const generateClothingImage = async (params: {
     throw new Error("No image generated");
   } catch (error) {
     console.error("Gemini Error:", error);
+    throw error;
+  }
+};
+
+/**
+ * 🆕 使用 Gemini Vision API 分析图片
+ * @param imageUrl 图片 URL或 Base64
+ * @param analysisPrompt 分析指令 Prompt
+ * @returns JSON 格式的分析结果
+ */
+export const analyzeImageWithVision = async (
+  imageUrl: string,
+  analysisPrompt: string
+): Promise<any> => {
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const modelName = 'gemini-2.5-flash-preview'; // 使用 Flash 模型进行分析
+
+  try {
+    console.log('🔍 开始 Vision 分析...');
+    console.log('📋 分析 Prompt:', analysisPrompt.substring(0, 100) + '...');
+
+    // 转换图片为 Base64
+    const b64 = imageUrl.startsWith('data:') ? imageUrl : await fetchImageAsBase64(imageUrl);
+
+    if (!b64.startsWith('data:')) {
+      throw new Error(`图片转换失败: ${imageUrl}`);
+    }
+
+    const contents = {
+      parts: [
+        { text: analysisPrompt },
+        {
+          inlineData: {
+            mimeType: 'image/jpeg',
+            data: b64.includes('base64,') ? b64.split(',')[1] : b64
+          }
+        }
+      ]
+    };
+
+    console.log('📤 发送 Vision 分析请求到 Gemini API...');
+
+    const response = await ai.models.generateContent({
+      model: modelName,
+      contents
+    });
+
+    console.log('📥 收到 Vision 分析响应');
+
+    if (response.candidates && response.candidates[0]?.content?.parts) {
+      const textPart = response.candidates[0].content.parts.find(p => p.text);
+
+      if (textPart && textPart.text) {
+        const responseText = textPart.text.trim();
+        console.log('✅ Vision 分析结果:', responseText.substring(0, 200) + '...');
+
+        // 尝试解析 JSON
+        try {
+          // 清理可能的 Markdown 代码块标记
+          let cleanedText = responseText;
+          if (responseText.includes('```json')) {
+            cleanedText = responseText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+          } else if (responseText.includes('```')) {
+            cleanedText = responseText.replace(/```\n?/g, '').trim();
+          }
+
+          const jsonResult = JSON.parse(cleanedText);
+          console.log('✅ JSON 解析成功');
+          return jsonResult;
+
+        } catch (parseError) {
+          console.error('❌ JSON 解析失败:', parseError);
+          console.error('原始响应:', responseText);
+          throw new Error('AI 返回的格式无效，无法解析为 JSON');
+        }
+      }
+    }
+
+    throw new Error('Vision API 未返回有效数据');
+
+  } catch (error) {
+    console.error('❌ Vision 分析失败:', error);
     throw error;
   }
 };

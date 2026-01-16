@@ -1,11 +1,13 @@
 
-import { ModelEntry } from '../constants';
+import { ModelEntry, INITIAL_CONFIG } from '../constants';
+import { SystemConfig } from '../types';
 
 export interface GenerationConfig {
     type: 'model' | 'pure';
     clothingImage: File;
     params: {
         ratio: string;
+        quality?: '1K' | '2K' | '4K';
         model?: string; // Model ID for 'model' type
         scene?: string;
         style?: string;
@@ -24,25 +26,21 @@ interface BuildParamsInput {
     modelSelection: 'auto' | 'manual';
     selectedModels: string[];
     clothingImage: File;
-    models: ModelEntry[]; // 🔥 Add models input
+    models: ModelEntry[];
+    config?: SystemConfig; // 🔥 Add config input
 }
 
-// 纯服装展示预设 variations
-const PURE_CLOTHING_VARIATIONS = [
-    { background: '纯白底-电商标准', angle: '平铺-微褶皱自然', style: '电商标准', ratio: '1:1' },
-    { background: '纯白底-电商标准', angle: '挂拍-无痕隐形', style: '电商标准', ratio: '3:4' },
-    { background: '木纹底-温馨感', angle: '平铺-微褶皱自然', style: '社交媒体', ratio: '1:1' },
-    { background: '大理石-轻奢感', angle: '平铺-微褶皱自然', style: '品牌宣传', ratio: '3:4' },
-    { background: '纯白底-电商标准', angle: '3D建模-立体支撑', style: '社交媒体', ratio: '1:1' },
-    { background: '地毯绒面', angle: '挂拍-无痕隐形', style: '艺术创意', ratio: '3:4' },
-];
-
 export function buildGenerationParams(input: BuildParamsInput): GenerationConfig[] {
-    const { clothingGender, displayType, modelSelection, selectedModels, clothingImage, models } = input;
+    const { clothingGender, displayType, modelSelection, selectedModels, clothingImage, models, config } = input;
+
+    // Use config or fallback to INITIAL_CONFIG
+    const effectiveConfig = config || INITIAL_CONFIG;
+    const presets = effectiveConfig.oneClickPresets || INITIAL_CONFIG.oneClickPresets;
 
     if (displayType === 'pure') {
-        // 纯服装展示图 - 6 张
-        return PURE_CLOTHING_VARIATIONS.map(params => ({
+        const pureVariations = presets.pureClothingVariations;
+        // 纯服装展示图
+        return pureVariations.map(params => ({
             type: 'pure',
             clothingImage,
             params: {
@@ -55,10 +53,10 @@ export function buildGenerationParams(input: BuildParamsInput): GenerationConfig
     // 模特展示图
     if (modelSelection === 'manual' && selectedModels.length > 0) {
         // 用户自选模特
-        return generateManualModelVariations(selectedModels, clothingImage, clothingGender);
+        return generateManualModelVariations(selectedModels, clothingImage, clothingGender, presets);
     } else {
         // 系统自动选择
-        return generateAutoModelVariations(clothingGender, clothingImage, models);
+        return generateAutoModelVariations(clothingGender, clothingImage, models, presets);
     }
 }
 
@@ -66,7 +64,8 @@ export function buildGenerationParams(input: BuildParamsInput): GenerationConfig
 function generateAutoModelVariations(
     gender: 'boys' | 'girls' | 'unisex',
     clothingImage: File,
-    models: ModelEntry[]
+    models: ModelEntry[],
+    presets: SystemConfig['oneClickPresets']
 ): GenerationConfig[] {
     let modelPool: string[];
 
@@ -94,8 +93,8 @@ function generateAutoModelVariations(
     }
 
     // 生成 9 种变化
-    const scenes = ['奶油风室内', '公园绿地', '简约摄影棚（纯色背景）'];
-    const styles = ['森系', '街头潮流', '可爱风'];
+    const scenes = presets.autoModeScenes;
+    const styles = presets.autoModeStyles;
     const ratios = ['3:4', '1:1', '16:9'];
 
     const variations: GenerationConfig[] = [];
@@ -107,8 +106,8 @@ function generateAutoModelVariations(
             params: {
                 ratio: ratios[i % 3],
                 model: modelPool[i % modelPool.length],
-                scene: scenes[i % 3],
-                style: styles[i % 3],
+                scene: scenes[i % scenes.length],
+                style: styles[i % styles.length],
                 clothingGender: gender
             }
         });
@@ -121,7 +120,8 @@ function generateAutoModelVariations(
 function generateManualModelVariations(
     selectedModels: string[],
     clothingImage: File,
-    gender: 'boys' | 'girls' | 'unisex'
+    gender: 'boys' | 'girls' | 'unisex',
+    presets: SystemConfig['oneClickPresets']
 ): GenerationConfig[] {
     const variations: GenerationConfig[] = [];
     // 比如选了 3 个模特，生成 9 张 -> 每个模特 3 张
@@ -129,8 +129,8 @@ function generateManualModelVariations(
     const totalImages = 9;
     const scenesPerModel = Math.ceil(totalImages / selectedModels.length);
 
-    const scenes = ['奶油风室内', '公园绿地', '简约摄影棚（纯色背景）'];
-    const styles = ['森系', '街头潮流', '可爱风'];
+    const scenes = presets.autoModeScenes;
+    const styles = presets.autoModeStyles;
 
     selectedModels.forEach((model, modelIndex) => {
         for (let i = 0; i < scenesPerModel && variations.length < totalImages; i++) {
@@ -140,8 +140,8 @@ function generateManualModelVariations(
                 params: {
                     ratio: i === 0 ? '3:4' : i === 1 ? '1:1' : '16:9',
                     model,
-                    scene: scenes[i % 3],
-                    style: styles[i % 3],
+                    scene: scenes[i % scenes.length],
+                    style: styles[i % styles.length],
                     clothingGender: gender
                 }
             });

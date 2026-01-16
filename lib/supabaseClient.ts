@@ -1,20 +1,21 @@
 import { createClient } from '@supabase/supabase-js';
 
 // 从环境变量获取 Supabase 配置
-const supabaseUrl = process.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY;
+// ⚠️ Temporary Debug: Hardcode credentials to ensure we are connecting to the correct DB
+// const supabaseUrl = process.env.VITE_SUPABASE_URL;
+// const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY;
+
+const supabaseUrl = 'https://cqjskmeodznouiixdrok.supabase.co';
+const supabaseAnonKey = 'sb_publishable_K26cSK7CSEV61FS56ea8mw_eUN7O92F';
 
 // 检查配置是否完整
 if (!supabaseUrl || !supabaseAnonKey) {
   console.error('❌ Supabase 配置缺失！');
-  console.error('VITE_SUPABASE_URL:', supabaseUrl);
-  console.error('VITE_SUPABASE_ANON_KEY:', supabaseAnonKey ? '已配置（隐藏）' : '未配置');
-  console.error('请检查 .env.local 文件是否正确配置');
 }
 
 export const supabase = createClient(
-  supabaseUrl || '',
-  supabaseAnonKey || ''
+  supabaseUrl,
+  supabaseAnonKey
 );
 
 // 数据库表类型定义

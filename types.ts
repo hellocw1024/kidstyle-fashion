@@ -1,4 +1,5 @@
 
+
 export enum AppView {
   AUTH = 'AUTH',
   INSPIRATION = 'INSPIRATION',
@@ -10,7 +11,8 @@ export enum AppView {
   AUDIT = 'AUDIT',
   RESOURCES = 'RESOURCES',
   CONFIG = 'CONFIG',
-  USERS = 'USERS'  // 用户管理
+  USERS = 'USERS',  // 用户管理
+  PROMPTS = 'PROMPTS'  // 提示词管理
 }
 
 export enum GenerationType {
@@ -25,11 +27,14 @@ export interface SystemConfig {
   genders: string[];
   ethnicities: string[]; // 国籍/肤色
   compositions: string[]; // 构图景别
-  poses: string[]; // 姿势情绪
+  poses: string[]; // 姿势动作
+  emotions: string[]; // 情绪表情
   scenes: string[]; // 场景列表（AI会根据服装自动适配）
   productForms: string[]; // 呈现形式 (平铺/挂拍/3D)
   productFocus: string[]; // 细节聚焦
   productBackgrounds: string[]; // 背景材质
+  ratios: string[]; // 比例选项
+  qualities: string[]; // 质量选项
   // AI 提示词模板
   promptTemplates: {
     mainPrompt: string; // 主提示词模板
@@ -38,6 +43,13 @@ export interface SystemConfig {
     sceneGuidance: string; // 场景指导
     qualityGuidance: string; // 画质指导
     additionalGuidance: string; // 额外指导
+    // 🔥 自动模式指令配置
+    autoModeInstructions: {
+      gender: string;
+      ageGroup: string;
+      ethnicity: string;
+      scene: string;
+    };
   };
 
   // 🔥 参考图提示词模板
@@ -48,6 +60,29 @@ export interface SystemConfig {
     flexibleMode: string; // 灵活模式描述
     elementExtraction: string; // 元素提取指导（支持占位符：{{elements}}）
     criticalNotice: string; // 关键提示语
+    // 🔥 提取关键词配置
+    extractionKeywords: {
+      background: string;
+      pose: string;
+      expression: string;
+      lighting: string;
+      composition: string;
+      all: string;
+    };
+  };
+
+
+
+  // 🔥 一键生成预设配置
+  oneClickPresets: {
+    pureClothingVariations: Array<{
+      background: string;
+      angle: string;
+      style: string;
+      ratio: string;
+    }>;
+    autoModeScenes: string[];
+    autoModeStyles: string[];
   };
 }
 
@@ -64,11 +99,47 @@ export interface ImageResource {
   id: string;
   url: string;
   type: 'UPLOAD' | 'GENERATE';
+  displayType?: DisplayType; // 🔥 新增：图片展示类型
   date: string;
   tags: string[];
   thumbnail?: string; // 缩略图（用于快速加载）
   modelName?: string; // 使用的 AI 模型名称
 }
+
+// 🔥 双模式类型定义
+export type DisplayType = 'model' | 'pure';
+
+// 🔥 模特展示参数
+export interface ModelDisplayParams {
+  ratio: '1:1' | '3:4' | '16:9';
+  quality: '1K' | '2K' | '4K';
+  model: string; // Model ID from MODEL_LIBRARY
+  scene: string;
+  style: string;
+  pose?: string;
+  emotion?: string;
+  gender?: string;
+  ageGroup?: string;
+  ethnicity?: string;
+}
+
+// 🔥 纯服装展示参数
+export interface PureClothingParams {
+  ratio: '1:1' | '3:4' | '16:9';
+  quality: '1K' | '2K' | '4K';
+  background: string; // 从 config.productBackgrounds
+  angle: string; // 从 config.productForms
+  style: string; // 简约/时尚/复古/艺术
+  focus?: string; // 从 config.productFocus
+}
+
+// 🔥 统一生成配置（用于新架构）
+export interface UnifiedGenerationConfig {
+  displayType: DisplayType;
+  clothingImage: File;
+  params: ModelDisplayParams | PureClothingParams;
+}
+
 
 export interface RechargeRequest {
   id: string;
@@ -111,6 +182,19 @@ export interface ReferenceImage {
   createdBy?: string;        // 创建者ID（用户上传时）
   createdAt: string;
   usageCount: number;        // 使用次数
+  status: 'ACTIVE' | 'INACTIVE';
+  category?: 'model' | 'product'; // 🔥 Added to match Admin panel classification
+}
+
+// 参考图库条目
+export interface ReferenceImageEntry {
+  id: string;
+  url: string;
+  type: 'model' | 'product';  // model: 模特展示图, product: 纯服装展示图
+  tags?: string[];
+  name?: string;
+  uploadedBy: string;
+  uploadedAt: string;
   status: 'ACTIVE' | 'INACTIVE';
 }
 
@@ -174,4 +258,37 @@ export interface GenerationTemplate {
 
   // 预览图（可选）：该模板最近一次生成的效果图
   previewImage?: string;
+}
+
+// 🎨 "做同款"功能数据
+export interface RemakeData {
+  referenceImage: ImageResource;  // 参考图
+  clothingImageFile: File;        // 用户上传的服装图片文件
+  options: {
+    scene: boolean;     // 场景复刻
+    pose: boolean;      // 姿态复刻
+    complete: boolean;  // 完全复刻
+  };
+  analysis: {
+    scene?: {
+      environment: string;
+      background: string;
+      lighting: string;
+      atmosphere: string;
+    };
+    pose?: {
+      bodyPose: string;
+      facialExpression: string;
+      handGesture: string;
+      headAngle: string;
+    };
+    complete?: {
+      scene: any;
+      pose: any;
+      cameraAngle: string;
+      composition: string;
+      overallStyle: string;
+    };
+  };
+  prompt: string;  // 构建好的 Prompt
 }

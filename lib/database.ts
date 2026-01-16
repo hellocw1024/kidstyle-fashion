@@ -527,3 +527,78 @@ export async function deleteModelFromDb(modelId: string): Promise<boolean> {
 
   return true;
 }
+
+// ============================================
+// 参考图库管理 (Reference Images Management)
+// ============================================
+
+/**
+ * 获取所有参考图
+ */
+export async function getAllReferenceImages(): Promise<any[]> {
+  console.log('🔍 database.ts: getAllReferenceImages running...');
+  const { data, error } = await supabase
+    .from('reference_images')
+    .select('*');
+  // .order('uploaded_at', { ascending: false });
+
+  console.log('🔍 database.ts result:', { dataLength: data?.length, error });
+
+  if (error) {
+    console.error('获取参考图库失败:', error);
+    return [];
+  }
+
+  return (data || []).map(r => ({
+    id: r.id,
+    url: r.url,
+    type: r.type,
+    tags: r.tags || [],
+    name: r.name || undefined,
+    uploadedBy: r.uploaded_by,
+    uploadedAt: r.uploaded_at,
+    status: r.status as 'ACTIVE' | 'INACTIVE'
+  }));
+}
+
+/**
+ * 添加新参考图
+ */
+export async function addReferenceImage(image: any): Promise<boolean> {
+  const { error } = await supabase
+    .from('reference_images')
+    .insert([{
+      id: image.id,
+      url: image.url,
+      type: image.type,
+      tags: image.tags || [],
+      name: image.name || null,
+      uploaded_by: image.uploadedBy,
+      uploaded_at: image.uploadedAt,
+      status: image.status
+    }]);
+
+  if (error) {
+    console.error('添加参考图失败:', error);
+    return false;
+  }
+
+  return true;
+}
+
+/**
+ * 删除参考图
+ */
+export async function deleteReferenceImage(imageId: string): Promise<boolean> {
+  const { error } = await supabase
+    .from('reference_images')
+    .delete()
+    .eq('id', imageId);
+
+  if (error) {
+    console.error('从数据库删除参考图失败:', error);
+    return false;
+  }
+
+  return true;
+}

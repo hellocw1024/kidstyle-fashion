@@ -14,12 +14,11 @@ import { SystemConfig, ReferenceImage, ReferenceImageType } from './types';
 
 export const INITIAL_CONFIG: SystemConfig = {
   styles: ['可爱风', '运动风', '学院风', '轻奢风', '国风', '森系', '街头潮流'],
-  ageGroups: ['0-1', '1-3', '3-5', '5-8', '8-12'],
-  genders: ['boy', 'girl'],
-  ethnicities: ['asian', 'caucasian', 'african', 'mixed'],
+  ageGroups: ['0-1岁', '1-3岁', '3-6岁', '6-12岁', '12-16岁'],
+  genders: ['男', '女', '中性'],
+  ethnicities: ['亚裔', '欧美', '非裔', '混血'],
   compositions: ['全身-展现整体', '半身-展现细节', '七分-动感构图', '特写-局部细节'],
   poses: ['静态站立', '可爱坐姿', '奔跑跳跃', '害羞微笑', '玩耍互动', '背影展示'],
-  emotions: ['开心微笑', '天真烂漫', '安静乖巧', '活泼好动', '害羞腼腆', '自信阳光'],
   scenes: [
     '简约摄影棚（纯色背景）',
     '公园绿地',
@@ -40,8 +39,6 @@ export const INITIAL_CONFIG: SystemConfig = {
   productForms: ['平铺-微褶皱自然', '挂拍-无痕隐形', '3D建模-立体支撑'],
   productFocus: ['整体呈现', '面料质感特写', '工艺细节(领口/刺绣)'],
   productBackgrounds: ['纯白底-电商标准', '木纹底-温馨感', '大理石-轻奢感', '地毯绒面'],
-  ratios: ['1:1', '3:4', '16:9'],
-  qualities: ['1K', '2K', '4K'],
   // AI 提示词模板
   promptTemplates: {
     mainPrompt: `TASK: Professional children's clothing commercial photography.
@@ -77,19 +74,11 @@ Scene should match the clothing's style. Lighting, colors, and atmosphere should
     qualityGuidance: `QUALITY: {{quality}}
 Use extremely high detail, commercial catalog quality standards.`,
     additionalGuidance: `ADDITIONAL DETAILS: {{customPrompt}}`,
-    // 🔥 自动模式指令（当用户选择 Auto 时使用）
-    autoModeInstructions: {
-      gender: 'suitable child model (boy or girl based on clothing style)',
-      ageGroup: 'age appropriate for the clothing size/style',
-      ethnicity: 'suitable heritage',
-      scene: 'automatically determined'
-    }
-  },
 
-  // 🔥 参考图提示词模板
-  referencePromptTemplates: {
-    enabled: true,
-    mainGuidance: `REFERENCE IMAGE GUIDANCE:
+    // 🔥 参考图提示词模板
+    referencePromptTemplates: {
+      enabled: true,
+      mainGuidance: `REFERENCE IMAGE GUIDANCE:
 You have been provided with a reference image alongside the clothing images. Use it as follows:
 - Reference Mode: {{mode}}
 - Extract these elements from the reference: {{elements}}
@@ -97,35 +86,11 @@ You have been provided with a reference image alongside the clothing images. Use
 {{custom_instruction}}
 
 {{critical_notice}}`,
-    strictMode: `STRICTLY FOLLOW the reference style closely`,
-    flexibleMode: `Use as FLEXIBLE INSPIRATION while maintaining your own creativity`,
-    elementExtraction: `Extract and apply: {{elements}}`,
-    criticalNotice: `CRITICAL: The CLOTHING must come from the uploaded clothing images, but the STYLE/ATMOSPHERE should match the reference image.`,
-    // 🔥 提取关键词配置
-    extractionKeywords: {
-      background: 'background environment',
-      pose: 'pose and body position',
-      expression: 'facial expression and mood',
-      lighting: 'lighting and atmosphere',
-      composition: 'composition and framing',
-      all: 'all visual elements'
+      strictMode: `STRICTLY FOLLOW the reference style closely`,
+      flexibleMode: `Use as FLEXIBLE INSPIRATION while maintaining your own creativity`,
+      elementExtraction: `Extract and apply: {{elements}}`,
+      criticalNotice: `CRITICAL: The CLOTHING must come from the uploaded clothing images, but the STYLE/ATMOSPHERE should match the reference image.`
     }
-  },
-
-
-
-  // 🔥 一键生成预设配置
-  oneClickPresets: {
-    pureClothingVariations: [
-      { background: '纯白底-电商标准', angle: '平铺-微褶皱自然', style: '电商标准', ratio: '1:1' },
-      { background: '纯白底-电商标准', angle: '挂拍-无痕隐形', style: '电商标准', ratio: '3:4' },
-      { background: '木纹底-温馨感', angle: '平铺-微褶皱自然', style: '社交媒体', ratio: '1:1' },
-      { background: '大理石-轻奢感', angle: '平铺-微褶皱自然', style: '品牌宣传', ratio: '3:4' },
-      { background: '纯白底-电商标准', angle: '3D建模-立体支撑', style: '社交媒体', ratio: '1:1' },
-      { background: '地毯绒面', angle: '挂拍-无痕隐形', style: '艺术创意', ratio: '3:4' },
-    ],
-    autoModeScenes: ['奶油风室内', '公园绿地', '简约摄影棚（纯色背景）'],
-    autoModeStyles: ['森系', '街头潮流', '可爱风']
   }
 };
 
@@ -779,6 +744,570 @@ export const MODEL_LIBRARY: ModelEntry[] = [
     status: 'ACTIVE'
   }
 ];
+{
+  id: 'model_1',
+    url: '/models/model_1.png',
+      gender: '男',
+        ageGroup: '3-6岁',
+          ethnicity: '亚裔',
+            name: '小小男孩A',
+              uploadedBy: 'SYSTEM',
+                uploadedAt: new Date().toISOString(),
+                  status: 'ACTIVE'
+},
+{
+  id: 'model_2',
+    url: '/models/model_2.png',
+      gender: '男',
+        ageGroup: '6-12岁',
+          ethnicity: '亚裔',
+            name: '阳光少年B',
+              uploadedBy: 'SYSTEM',
+                uploadedAt: new Date().toISOString(),
+                  status: 'ACTIVE'
+},
+{
+  id: 'model_batch1_1',
+    url: '/models/chenchen_3yo.png',
+      gender: '男',
+        ageGroup: '0-1岁',
+          ethnicity: '亚裔',
+            name: '晨晨',
+              uploadedBy: 'SYSTEM',
+                uploadedAt: new Date().toISOString(),
+                  status: 'ACTIVE'
+},
+{
+  id: 'model_batch1_2',
+    url: '/models/xiaobo_3yo.png',
+      gender: '男',
+        ageGroup: '0-1岁',
+          ethnicity: '亚裔',
+            name: '小博',
+              uploadedBy: 'SYSTEM',
+                uploadedAt: new Date().toISOString(),
+                  status: 'ACTIVE'
+},
+{
+  id: 'model_batch1_3',
+    url: '/models/yangyang_4yo.png',
+      gender: '男',
+        ageGroup: '3-6岁',
+          ethnicity: '亚裔',
+            name: '阳阳',
+              uploadedBy: 'SYSTEM',
+                uploadedAt: new Date().toISOString(),
+                  status: 'ACTIVE'
+},
+{
+  id: 'model_batch1_4',
+    url: '/models/hanhan_5yo.png',
+      gender: '男',
+        ageGroup: '3-6岁',
+          ethnicity: '亚裔',
+            name: '涵涵',
+              uploadedBy: 'SYSTEM',
+                uploadedAt: new Date().toISOString(),
+                  status: 'ACTIVE'
+},
+{
+  id: 'model_batch1_5',
+    url: '/models/xuanxuan_5yo.png',
+      gender: '男',
+        ageGroup: '3-6岁',
+          ethnicity: '亚裔',
+            name: '轩轩',
+              uploadedBy: 'SYSTEM',
+                uploadedAt: new Date().toISOString(),
+                  status: 'ACTIVE'
+},
+{
+  id: 'model_batch2_6',
+    url: '/models/mingming_6yo.png',
+      gender: '男',
+        ageGroup: '3-6岁',
+          ethnicity: '亚裔',
+            name: '铭铭',
+              uploadedBy: 'SYSTEM',
+                uploadedAt: new Date().toISOString(),
+                  status: 'ACTIVE'
+},
+{
+  id: 'model_batch2_7',
+    url: '/models/lele_6yo.png',
+      gender: '男',
+        ageGroup: '3-6岁',
+          ethnicity: '亚裔',
+            name: '乐乐',
+              uploadedBy: 'SYSTEM',
+                uploadedAt: new Date().toISOString(),
+                  status: 'ACTIVE'
+},
+{
+  id: 'model_batch2_8',
+    url: '/models/zichen_7yo.png',
+      gender: '男',
+        ageGroup: '6-12岁',
+          ethnicity: '亚裔',
+            name: '梓晨',
+              uploadedBy: 'SYSTEM',
+                uploadedAt: new Date().toISOString(),
+                  status: 'ACTIVE'
+},
+{
+  id: 'model_batch2_9',
+    url: '/models/junjie_8yo.png',
+      gender: '男',
+        ageGroup: '6-12岁',
+          ethnicity: '亚裔',
+            name: '俊杰',
+              uploadedBy: 'SYSTEM',
+                uploadedAt: new Date().toISOString(),
+                  status: 'ACTIVE'
+},
+{
+  id: 'model_batch2_10',
+    url: '/models/haoyu_8yo.png',
+      gender: '男',
+        ageGroup: '6-12岁',
+          ethnicity: '亚裔',
+            name: '浩宇',
+              uploadedBy: 'SYSTEM',
+                uploadedAt: new Date().toISOString(),
+                  status: 'ACTIVE'
+},
+{
+  id: 'china_boy_1',
+    url: '/models/china_boy_1_3_1768199803161.png',
+      gender: '男',
+        ageGroup: '1-3岁',
+          ethnicity: '亚裔',
+            name: '中国男孩-1',
+              uploadedBy: 'SYSTEM',
+                uploadedAt: new Date().toISOString(),
+                  status: 'ACTIVE'
+},
+{
+  id: 'china_boy_2',
+    url: '/models/china_boy_2_3_1768199821225.png',
+      gender: '男',
+        ageGroup: '1-3岁',
+          ethnicity: '亚裔',
+            name: '中国男孩-2',
+              uploadedBy: 'SYSTEM',
+                uploadedAt: new Date().toISOString(),
+                  status: 'ACTIVE'
+},
+{
+  id: 'china_boy_3',
+    url: '/models/china_boy_3_4_1768199836563.png',
+      gender: '男',
+        ageGroup: '3-6岁',
+          ethnicity: '亚裔',
+            name: '中国男孩-3',
+              uploadedBy: 'SYSTEM',
+                uploadedAt: new Date().toISOString(),
+                  status: 'ACTIVE'
+},
+{
+  id: 'china_boy_4',
+    url: '/models/china_boy_4_5_1768199850699.png',
+      gender: '男',
+        ageGroup: '3-6岁',
+          ethnicity: '亚裔',
+            name: '中国男孩-4',
+              uploadedBy: 'SYSTEM',
+                uploadedAt: new Date().toISOString(),
+                  status: 'ACTIVE'
+},
+{
+  id: 'china_boy_5',
+    url: '/models/china_boy_5_5_1768199865237.png',
+      gender: '男',
+        ageGroup: '3-6岁',
+          ethnicity: '亚裔',
+            name: '中国男孩-5',
+              uploadedBy: 'SYSTEM',
+                uploadedAt: new Date().toISOString(),
+                  status: 'ACTIVE'
+},
+{
+  id: 'china_boy_6',
+    url: '/models/china_boy_6_6_1768199886487.png',
+      gender: '男',
+        ageGroup: '3-6岁',
+          ethnicity: '亚裔',
+            name: '中国男孩-6',
+              uploadedBy: 'SYSTEM',
+                uploadedAt: new Date().toISOString(),
+                  status: 'ACTIVE'
+},
+{
+  id: 'china_boy_7',
+    url: '/models/china_boy_7_6_1768199901945.png',
+      gender: '男',
+        ageGroup: '3-6岁',
+          ethnicity: '亚裔',
+            name: '中国男孩-7',
+              uploadedBy: 'SYSTEM',
+                uploadedAt: new Date().toISOString(),
+                  status: 'ACTIVE'
+},
+{
+  id: 'china_boy_8',
+    url: '/models/china_boy_8_7_1768199917272.png',
+      gender: '男',
+        ageGroup: '6-12岁',
+          ethnicity: '亚裔',
+            name: '中国男孩-8',
+              uploadedBy: 'SYSTEM',
+                uploadedAt: new Date().toISOString(),
+                  status: 'ACTIVE'
+},
+{
+  id: 'china_boy_9',
+    url: '/models/china_boy_9_8_1768199932789.png',
+      gender: '男',
+        ageGroup: '6-12岁',
+          ethnicity: '亚裔',
+            name: '中国男孩-9',
+              uploadedBy: 'SYSTEM',
+                uploadedAt: new Date().toISOString(),
+                  status: 'ACTIVE'
+},
+{
+  id: 'china_boy_10',
+    url: '/models/china_boy_10_8_1768199947433.png',
+      gender: '男',
+        ageGroup: '6-12岁',
+          ethnicity: '亚裔',
+            name: '中国男孩-10',
+              uploadedBy: 'SYSTEM',
+                uploadedAt: new Date().toISOString(),
+                  status: 'ACTIVE'
+},
+{
+  id: 'china_boy_11',
+    url: '/models/china_boy_11_9_1768199967505.png',
+      gender: '男',
+        ageGroup: '6-12岁',
+          ethnicity: '亚裔',
+            name: '中国男孩-11',
+              uploadedBy: 'SYSTEM',
+                uploadedAt: new Date().toISOString(),
+                  status: 'ACTIVE'
+},
+{
+  id: 'china_boy_12',
+    url: '/models/china_boy_12_10_1768199982662.png',
+      gender: '男',
+        ageGroup: '6-12岁',
+          ethnicity: '亚裔',
+            name: '中国男孩-12',
+              uploadedBy: 'SYSTEM',
+                uploadedAt: new Date().toISOString(),
+                  status: 'ACTIVE'
+},
+{
+  id: 'china_boy_13',
+    url: '/models/china_boy_13_10_1768199997037.png',
+      gender: '男',
+        ageGroup: '6-12岁',
+          ethnicity: '亚裔',
+            name: '中国男孩-13',
+              uploadedBy: 'SYSTEM',
+                uploadedAt: new Date().toISOString(),
+                  status: 'ACTIVE'
+},
+{
+  id: 'china_boy_14',
+    url: '/models/china_boy_14_11_1768200012443.png',
+      gender: '男',
+        ageGroup: '6-12岁',
+          ethnicity: '亚裔',
+            name: '中国男孩-14',
+              uploadedBy: 'SYSTEM',
+                uploadedAt: new Date().toISOString(),
+                  status: 'ACTIVE'
+},
+{
+  id: 'china_boy_15',
+    url: '/models/china_boy_15_12_1768200028790.png',
+      gender: '男',
+        ageGroup: '12-16岁',
+          ethnicity: '亚裔',
+            name: '中国男孩-15',
+              uploadedBy: 'SYSTEM',
+                uploadedAt: new Date().toISOString(),
+                  status: 'ACTIVE'
+},
+{
+  id: 'china_boy_16',
+    url: '/models/china_boy_16_12_1768200045143.png',
+      gender: '男',
+        ageGroup: '12-16岁',
+          ethnicity: '亚裔',
+            name: '中国男孩-16',
+              uploadedBy: 'SYSTEM',
+                uploadedAt: new Date().toISOString(),
+                  status: 'ACTIVE'
+},
+{
+  id: 'china_boy_17',
+    url: '/models/china_boy_17_13_1768200067102.png',
+      gender: '男',
+        ageGroup: '12-16岁',
+          ethnicity: '亚裔',
+            name: '中国男孩-17',
+              uploadedBy: 'SYSTEM',
+                uploadedAt: new Date().toISOString(),
+                  status: 'ACTIVE'
+},
+{
+  id: 'china_boy_18',
+    url: '/models/china_boy_18_13_1768200081745.png',
+      gender: '男',
+        ageGroup: '12-16岁',
+          ethnicity: '亚裔',
+            name: '中国男孩-18',
+              uploadedBy: 'SYSTEM',
+                uploadedAt: new Date().toISOString(),
+                  status: 'ACTIVE'
+},
+{
+  id: 'china_girl_1',
+    url: '/models/china_girl_1_3_years_old_1768274023038.png',
+      gender: '女',
+        ageGroup: '1-3岁',
+          ethnicity: '亚裔',
+            name: '中国女孩-1',
+              uploadedBy: 'SYSTEM',
+                uploadedAt: new Date().toISOString(),
+                  status: 'ACTIVE'
+},
+{
+  id: 'china_girl_2',
+    url: '/models/china_girl_2_4_years_old_1768274038095.png',
+      gender: '女',
+        ageGroup: '3-6岁',
+          ethnicity: '亚裔',
+            name: '中国女孩-2',
+              uploadedBy: 'SYSTEM',
+                uploadedAt: new Date().toISOString(),
+                  status: 'ACTIVE'
+},
+{
+  id: 'china_girl_3',
+    url: '/models/china_girl_3_5_years_old_1768274053044.png',
+      gender: '女',
+        ageGroup: '3-6岁',
+          ethnicity: '亚裔',
+            name: '中国女孩-3',
+              uploadedBy: 'SYSTEM',
+                uploadedAt: new Date().toISOString(),
+                  status: 'ACTIVE'
+},
+{
+  id: 'china_girl_4',
+    url: '/models/china_girl_4_6_years_old_1768274067956.png',
+      gender: '女',
+        ageGroup: '3-6岁',
+          ethnicity: '亚裔',
+            name: '中国女孩-4',
+              uploadedBy: 'SYSTEM',
+                uploadedAt: new Date().toISOString(),
+                  status: 'ACTIVE'
+},
+{
+  id: 'china_girl_5',
+    url: '/models/china_girl_5_7_years_old_1768274081953.png',
+      gender: '女',
+        ageGroup: '6-12岁',
+          ethnicity: '亚裔',
+            name: '中国女孩-5',
+              uploadedBy: 'SYSTEM',
+                uploadedAt: new Date().toISOString(),
+                  status: 'ACTIVE'
+},
+{
+  id: 'china_girl_6',
+    url: '/models/china_girl_6_8_years_old_1768274095938.png',
+      gender: '女',
+        ageGroup: '6-12岁',
+          ethnicity: '亚裔',
+            name: '中国女孩-6',
+              uploadedBy: 'SYSTEM',
+                uploadedAt: new Date().toISOString(),
+                  status: 'ACTIVE'
+},
+{
+  id: 'china_girl_7',
+    url: '/models/china_girl_7_9_years_old_1768274112268.png',
+      gender: '女',
+        ageGroup: '6-12岁',
+          ethnicity: '亚裔',
+            name: '中国女孩-7',
+              uploadedBy: 'SYSTEM',
+                uploadedAt: new Date().toISOString(),
+                  status: 'ACTIVE'
+},
+{
+  id: 'china_girl_8',
+    url: '/models/china_girl_8_10_years_old_1768274127173.png',
+      gender: '女',
+        ageGroup: '6-12岁',
+          ethnicity: '亚裔',
+            name: '中国女孩-8',
+              uploadedBy: 'SYSTEM',
+                uploadedAt: new Date().toISOString(),
+                  status: 'ACTIVE'
+},
+{
+  id: 'china_girl_9',
+    url: '/models/china_girl_9_11_years_old_1768274142148.png',
+      gender: '女',
+        ageGroup: '6-12岁',
+          ethnicity: '亚裔',
+            name: '中国女孩-9',
+              uploadedBy: 'SYSTEM',
+                uploadedAt: new Date().toISOString(),
+                  status: 'ACTIVE'
+},
+{
+  id: 'china_girl_10',
+    url: '/models/china_girl_10_12_years_old_1768274157887.png',
+      gender: '女',
+        ageGroup: '12-16岁',
+          ethnicity: '亚裔',
+            name: '中国女孩-10',
+              uploadedBy: 'SYSTEM',
+                uploadedAt: new Date().toISOString(),
+                  status: 'ACTIVE'
+},
+{
+  id: 'china_girl_11',
+    url: '/models/china_girl_11_3_years_old_1768274384653.png',
+      gender: '女',
+        ageGroup: '1-3岁',
+          ethnicity: '亚裔',
+            name: '中国女孩-11',
+              uploadedBy: 'SYSTEM',
+                uploadedAt: new Date().toISOString(),
+                  status: 'ACTIVE'
+},
+{
+  id: 'china_girl_new_1',
+    url: '/models/girl_model_1.png',
+      gender: '女',
+        ageGroup: '3-6岁',
+          ethnicity: '亚裔',
+            name: '中国女孩-12',
+              uploadedBy: 'SYSTEM',
+                uploadedAt: new Date().toISOString(),
+                  status: 'ACTIVE'
+},
+{
+  id: 'china_girl_new_2',
+    url: '/models/girl_model_2.png',
+      gender: '女',
+        ageGroup: '3-6岁',
+          ethnicity: '亚裔',
+            name: '中国女孩-13',
+              uploadedBy: 'SYSTEM',
+                uploadedAt: new Date().toISOString(),
+                  status: 'ACTIVE'
+},
+{
+  id: 'china_girl_new_3',
+    url: '/models/girl_model_3.png',
+      gender: '女',
+        ageGroup: '6-12岁',
+          ethnicity: '亚裔',
+            name: '中国女孩-14',
+              uploadedBy: 'SYSTEM',
+                uploadedAt: new Date().toISOString(),
+                  status: 'ACTIVE'
+},
+{
+  id: 'china_girl_new_4',
+    url: '/models/girl_model_4.png',
+      gender: '女',
+        ageGroup: '6-12岁',
+          ethnicity: '亚裔',
+            name: '中国女孩-15',
+              uploadedBy: 'SYSTEM',
+                uploadedAt: new Date().toISOString(),
+                  status: 'ACTIVE'
+},
+{
+  id: 'china_girl_new_5',
+    url: '/models/girl_model_5.png',
+      gender: '女',
+        ageGroup: '6-12岁',
+          ethnicity: '亚裔',
+            name: '中国女孩-16',
+              uploadedBy: 'SYSTEM',
+                uploadedAt: new Date().toISOString(),
+                  status: 'ACTIVE'
+},
+{
+  id: 'china_girl_new_6',
+    url: '/models/girl_model_6.png',
+      gender: '女',
+        ageGroup: '3-6岁',
+          ethnicity: '亚裔',
+            name: '中国女孩-17',
+              uploadedBy: 'SYSTEM',
+                uploadedAt: new Date().toISOString(),
+                  status: 'ACTIVE'
+},
+{
+  id: 'china_girl_new_7',
+    url: '/models/girl_model_7.png',
+      gender: '女',
+        ageGroup: '6-12岁',
+          ethnicity: '亚裔',
+            name: '中国女孩-18',
+              uploadedBy: 'SYSTEM',
+                uploadedAt: new Date().toISOString(),
+                  status: 'ACTIVE'
+},
+{
+  id: 'china_girl_new_8',
+    url: '/models/girl_model_8.png',
+      gender: '女',
+        ageGroup: '6-12岁',
+          ethnicity: '亚裔',
+            name: '中国女孩-19',
+              uploadedBy: 'SYSTEM',
+                uploadedAt: new Date().toISOString(),
+                  status: 'ACTIVE'
+},
+{
+  id: 'china_girl_new_9',
+    url: '/models/girl_model_9.png',
+      gender: '女',
+        ageGroup: '6-12岁',
+          ethnicity: '亚裔',
+            name: '中国女孩-20',
+              uploadedBy: 'SYSTEM',
+                uploadedAt: new Date().toISOString(),
+                  status: 'ACTIVE'
+},
+{
+  id: 'china_girl_new_10',
+    url: '/models/girl_model_10.png',
+      gender: '女',
+        ageGroup: '3-6岁',
+          ethnicity: '亚裔',
+            name: '中国女孩-21',
+              uploadedBy: 'SYSTEM',
+                uploadedAt: new Date().toISOString(),
+                  status: 'ACTIVE'
+}
+];
+
+// 内置参考图库
 export const REFERENCE_IMAGE_LIBRARY: ReferenceImage[] = [
   // === 户外场景 - 公园 ===
   {

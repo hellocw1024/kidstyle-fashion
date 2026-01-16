@@ -1,8 +1,8 @@
 import React, { useState, useRef } from 'react';
 import {
-  Users, CreditCard, ShoppingBag, TrendingUp, Check, X, Eye, Plus, Trash2, Save, Camera, Palette, Box, Maximize, UserCheck, Shirt, Upload, Filter, Search, MessageSquare, ChevronRight, Image as ImageIcon
+  Users, CreditCard, ShoppingBag, TrendingUp, Check, X, Eye, Plus, Trash2, Save, Camera, Palette, Box, Maximize, UserCheck, Shirt, Upload, Download, Filter, Search, MessageSquare, ChevronRight, Image as ImageIcon
 } from 'lucide-react';
-import { RechargeRequest, AppView, User, SystemConfig } from '../types.ts';
+import { RechargeRequest, AppView, User, SystemConfig, ReferenceImageEntry } from '../types.ts';
 import { ModelEntry } from '../constants.tsx';
 
 interface Props {
@@ -12,13 +12,15 @@ interface Props {
   onUserUpdate: (users: User[]) => void;  // 用于更新用户列表
   models: ModelEntry[];
   onModelsUpdate: (m: ModelEntry[]) => void;
+  referenceImages: ReferenceImageEntry[];  // 参考图库
+  onReferenceImagesUpdate: (images: ReferenceImageEntry[]) => void;  // 更新参考图库
   config: SystemConfig;
   onConfigUpdate: (c: SystemConfig) => void;
   rechargeRequests: RechargeRequest[];
   onAuditAction: (id: string, status: 'APPROVED' | 'REJECTED') => void;
 }
 
-const AdminPage: React.FC<Props> = ({ activeTab, setView, allUsers, onUserUpdate, models, onModelsUpdate, config, onConfigUpdate, rechargeRequests, onAuditAction }) => {
+const AdminPage: React.FC<Props> = ({ activeTab, setView, allUsers, onUserUpdate, models, onModelsUpdate, referenceImages, onReferenceImagesUpdate, config, onConfigUpdate, rechargeRequests, onAuditAction }) => {
   const currentTab = (activeTab === AppView.ADMIN) ? AppView.STATS : activeTab;
   const [editingKey, setEditingKey] = useState<keyof SystemConfig | null>(null);
   const [newValue, setNewValue] = useState('');
@@ -46,6 +48,15 @@ const AdminPage: React.FC<Props> = ({ activeTab, setView, allUsers, onUserUpdate
 
   const [modelUsageStats, setModelUsageStats] = useState<{ date: string; counts: Record<string, number> }[]>([]);
   const [isLoadingStats, setIsLoadingStats] = useState(false);
+
+  // 参考图库管理相关 state
+  const [resourceTab, setResourceTab] = useState<'models' | 'references'>('models');  // 资源管理 Tab
+  const [referenceFilter, setReferenceFilter] = useState({ type: '', search: '' });
+  const [selectedReferences, setSelectedReferences] = useState<string[]>([]);
+  const [referenceUploadModal, setReferenceUploadModal] = useState(false);
+  const [referenceUploadInfo, setReferenceUploadInfo] = useState({ type: '', name: '' });
+  const [selectedReferenceFiles, setSelectedReferenceFiles] = useState<FileList | null>(null);
+  const [previewReferenceImages, setPreviewReferenceImages] = useState<string[]>([]);
 
   // Gemini 官方免费限制参考 (RPM 不好衡量，按每日 50 次估算，实际以官方为准)
   const MODEL_DAILY_LIMITS: Record<string, number> = {
@@ -136,6 +147,7 @@ const AdminPage: React.FC<Props> = ({ activeTab, setView, allUsers, onUserUpdate
       setPromptValue('');
       setSaveResultModal({ show: true, success: true, message: `提示词模板 "${templateKey}" 已更新` });
     }
+
   };
 
   const handleRemoveItem = (key: keyof SystemConfig, index: number) => {
@@ -153,11 +165,66 @@ const AdminPage: React.FC<Props> = ({ activeTab, setView, allUsers, onUserUpdate
     return true;
   });
 
+  // 🔥 模特字段的中文显示映射
+  const getModelFieldLabel = (field: 'gender' | 'ageGroup' | 'ethnicity', value: string): string => {
+    if (field === 'gender') {
+      const genderLabels: Record<string, string> = {
+        'boy': '男孩',
+        'girl': '女孩'
+      };
+      return genderLabels[value] || value;
+    }
+    if (field === 'ageGroup') {
+      const ageLabels: Record<string, string> = {
+        '0-1': '0-1岁',
+        '1-3': '1-3岁',
+        '3-5': '3-5岁',
+        '5-8': '5-8岁',
+        '8-12': '8-12岁'
+      };
+      return ageLabels[value] || value;
+    }
+    if (field === 'ethnicity') {
+      const ethnicityLabels: Record<string, string> = {
+        'asian': '亚洲',
+        'caucasian': '欧美',
+        'african': '非洲',
+        'mixed': '混血'
+      };
+      return ethnicityLabels[value] || value;
+    }
+    return value;
+  };
+
   const toggleModelSelection = (modelId: string) => {
     setSelectedModels(prev =>
       prev.includes(modelId)
         ? prev.filter(id => id !== modelId)
         : [...prev, modelId]
+    );
+  };
+
+  // 参考图筛选逻辑
+  const filteredReferences = referenceImages.filter(ref => {
+    if (referenceFilter.type && ref.type !== referenceFilter.type) return false;
+    if (referenceFilter.search && !ref.name?.toLowerCase().includes(referenceFilter.search.toLowerCase())) return false;
+    return true;
+  });
+
+  // 参考图类型显示映射
+  const getReferenceTypeLabel = (type: string): string => {
+    const typeLabels: Record<string, string> = {
+      'model': '模特展示图',
+      'product': '纯服装展示图'
+    };
+    return typeLabels[type] || type;
+  };
+
+  const toggleReferenceSelection = (refId: string) => {
+    setSelectedReferences(prev =>
+      prev.includes(refId)
+        ? prev.filter(id => id !== refId)
+        : [...prev, refId]
     );
   };
 
@@ -271,12 +338,14 @@ const AdminPage: React.FC<Props> = ({ activeTab, setView, allUsers, onUserUpdate
     { key: 'genders', label: '模特性别', icon: <Users size={18} />, desc: '男、女、中性及通用' },
     { key: 'ethnicities', label: '国籍肤色', icon: <Maximize size={18} />, desc: '满足全球电商展示需求' },
     { key: 'compositions', label: '构图景别', icon: <Box size={18} />, desc: '全身、半身或特写细节' },
-    { key: 'poses', label: '姿势情绪', icon: <TrendingUp size={18} />, desc: '奔跑、害羞、静态等' },
+    { key: 'poses', label: '姿势动作', icon: <TrendingUp size={18} />, desc: '奔跑、害羞、静态等' },
+    { key: 'emotions', label: '情绪表情', icon: <MessageSquare size={18} />, desc: '开心、天真、安静等' },
     { key: 'scenes', label: '拍摄场景', icon: <Camera size={18} />, desc: '外景、室内、专业摄影棚等' },
     { key: 'productForms', label: '呈现形式', icon: <Shirt size={18} />, desc: '平铺、挂拍、3D建模' },
     { key: 'productFocus', label: '细节聚焦', icon: <Search size={18} />, desc: '面料特写、工艺细节、整体' },
     { key: 'productBackgrounds', label: '背景材质', icon: <Maximize size={18} />, desc: '木纹、白底、大理石等' },
-    { key: 'promptTemplates', label: 'AI 提示词管理', icon: <MessageSquare size={18} />, desc: '自定义 AI 生成提示词模板' }
+    { key: 'ratios', label: '比例选项', icon: <Box size={18} />, desc: '1:1、3:4、16:9等' },
+    { key: 'qualities', label: '质量选项', icon: <TrendingUp size={18} />, desc: '1K、2K、4K等' }
   ];
 
   // 🔥 定义内部 Tab 配置
@@ -284,6 +353,7 @@ const AdminPage: React.FC<Props> = ({ activeTab, setView, allUsers, onUserUpdate
     { id: AppView.STATS, label: '运营看板', icon: <TrendingUp size={18} /> },
     { id: AppView.CONFIG, label: '深度配置', icon: <Palette size={18} /> },
     { id: AppView.RESOURCES, label: '资源管理', icon: <ShoppingBag size={18} /> },
+    { id: AppView.PROMPTS, label: '提示词管理', icon: <MessageSquare size={18} /> },
     { id: AppView.AUDIT, label: '充值审核', icon: <CreditCard size={18} /> },
     { id: AppView.USERS, label: '用户管理', icon: <Users size={18} /> }
   ];
@@ -302,8 +372,8 @@ const AdminPage: React.FC<Props> = ({ activeTab, setView, allUsers, onUserUpdate
             key={tab.id}
             onClick={() => setView(tab.id)}
             className={`flex items-center space-x-2 px-4 py-3 rounded-xl font-bold text-sm transition-all whitespace-nowrap ${currentTab === tab.id
-                ? 'bg-rose-500 text-white shadow-lg'
-                : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'
+              ? 'bg-rose-500 text-white shadow-lg'
+              : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'
               }`}
           >
             {tab.icon}
@@ -386,6 +456,37 @@ const AdminPage: React.FC<Props> = ({ activeTab, setView, allUsers, onUserUpdate
               const isPromptSection = section.key === 'promptTemplates';
               const sectionValue = config[section.key as keyof SystemConfig];
 
+              // 🔥 添加配置值的中文显示映射
+              const getDisplayLabel = (key: string, value: string): string => {
+                if (key === 'ageGroups') {
+                  const ageLabels: Record<string, string> = {
+                    '0-1': '0-1岁',
+                    '1-3': '1-3岁',
+                    '3-5': '3-5岁',
+                    '5-8': '5-8岁',
+                    '8-12': '8-12岁'
+                  };
+                  return ageLabels[value] || value;
+                }
+                if (key === 'genders') {
+                  const genderLabels: Record<string, string> = {
+                    'boy': '男孩',
+                    'girl': '女孩'
+                  };
+                  return genderLabels[value] || value;
+                }
+                if (key === 'ethnicities') {
+                  const ethnicityLabels: Record<string, string> = {
+                    'asian': '亚洲',
+                    'caucasian': '欧美',
+                    'african': '非洲',
+                    'mixed': '混血'
+                  };
+                  return ethnicityLabels[value] || value;
+                }
+                return value;
+              };
+
               return (
                 <div key={section.key} className="bg-white p-6 rounded-3xl border hover:border-rose-300 transition-all group">
                   <div className="flex items-center justify-between mb-4">
@@ -402,7 +503,9 @@ const AdminPage: React.FC<Props> = ({ activeTab, setView, allUsers, onUserUpdate
                   {!isPromptSection && Array.isArray(sectionValue) && (
                     <div className="mt-4 flex flex-wrap gap-1">
                       {sectionValue.slice(0, 4).map(item => (
-                        <span key={item} className="text-[9px] font-bold px-2 py-0.5 bg-gray-50 rounded border text-gray-400">{item}</span>
+                        <span key={item} className="text-[9px] font-bold px-2 py-0.5 bg-gray-50 rounded border text-gray-400">
+                          {getDisplayLabel(section.key, item)}
+                        </span>
                       ))}
                       {sectionValue.length > 4 && <span className="text-[9px] text-gray-300">...</span>}
                     </div>
@@ -422,90 +525,258 @@ const AdminPage: React.FC<Props> = ({ activeTab, setView, allUsers, onUserUpdate
       {
         currentTab === AppView.RESOURCES && (
           <div className="space-y-6">
-            <div className="bg-white rounded-3xl border p-8">
-              <div className="flex items-center justify-between mb-8">
-                <div>
-                  <h3 className="text-xl font-black">模特库管理</h3>
-                  <p className="text-sm text-gray-400 mt-1">上传和管理模特照片，支持按年龄、性别、国籍筛选</p>
-                </div>
-                <button onClick={() => setModelUploadModal(true)} className="flex items-center space-x-2 px-4 py-2 bg-rose-500 text-white rounded-xl font-bold">
-                  <Upload size={18} />
-                  <span>上传模特</span>
-                </button>
-              </div>
+            {/* Tab 切换 */}
+            <div className="flex space-x-2 border-b">
+              <button
+                onClick={() => setResourceTab('models')}
+                className={`px-6 py-3 font-bold transition-all ${resourceTab === 'models'
+                  ? 'text-rose-500 border-b-2 border-rose-500'
+                  : 'text-gray-400 hover:text-gray-600'
+                  }`}
+              >
+                模特库管理
+              </button>
+              <button
+                onClick={() => setResourceTab('references')}
+                className={`px-6 py-3 font-bold transition-all ${resourceTab === 'references'
+                  ? 'text-rose-500 border-b-2 border-rose-500'
+                  : 'text-gray-400 hover:text-gray-600'
+                  }`}
+              >
+                参考图库管理
+              </button>
+            </div>
 
-              {/* 筛选器 */}
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-                <div className="relative">
-                  <Search size={16} className="absolute left-3 top-3 text-gray-400" />
-                  <input
-                    type="text"
-                    placeholder="搜索模特..."
-                    value={modelFilter.search}
-                    onChange={e => setModelFilter({ ...modelFilter, search: e.target.value })}
-                    className="w-full pl-10 pr-3 py-2.5 bg-gray-50 border-2 border-transparent focus:border-rose-400 rounded-xl outline-none text-sm"
-                  />
-                </div>
-                <select value={modelFilter.gender} onChange={e => setModelFilter({ ...modelFilter, gender: e.target.value })} className="px-3 py-2.5 bg-gray-50 border-2 border-transparent focus:border-rose-400 rounded-xl outline-none text-sm">
-                  <option value="">所有性别</option>
-                  {config.genders.map(g => <option key={g} value={g}>{g}</option>)}
-                </select>
-                <select value={modelFilter.ageGroup} onChange={e => setModelFilter({ ...modelFilter, ageGroup: e.target.value })} className="px-3 py-2.5 bg-gray-50 border-2 border-transparent focus:border-rose-400 rounded-xl outline-none text-sm">
-                  <option value="">所有年龄</option>
-                  {config.ageGroups.map(a => <option key={a} value={a}>{a}</option>)}
-                </select>
-                <select value={modelFilter.ethnicity} onChange={e => setModelFilter({ ...modelFilter, ethnicity: e.target.value })} className="px-3 py-2.5 bg-gray-50 border-2 border-transparent focus:border-rose-400 rounded-xl outline-none text-sm">
-                  <option value="">所有国籍</option>
-                  {config.ethnicities.map(e => <option key={e} value={e}>{e}</option>)}
-                </select>
-              </div>
+            {/* 模特库管理 */}
+            {resourceTab === 'models' && (
+              <div className="bg-white rounded-3xl border p-8">
+                <div className="flex items-center justify-between mb-8">
+                  <div>
+                    <h3 className="text-xl font-black">模特库</h3>
+                    <p className="text-sm text-gray-400 mt-1">上传和管理模特照片，支持按年龄、性别、国籍筛选</p>
+                  </div>
+                  <div className="flex space-x-3">
+                    {models.length === 0 && (
+                      <button
+                        onClick={async () => {
+                          if (confirm('确定要导入默认模特库吗？这将导入 60+ 个默认模特到数据库。')) {
+                            try {
+                              const { MODEL_LIBRARY } = await import('../constants.tsx');
+                              const { addModel } = await import('../lib/database.ts');
 
-              {/* 批量操作 */}
-              {selectedModels.length > 0 && (
-                <div className="flex items-center justify-between p-4 bg-rose-50 rounded-2xl mb-6">
-                  <span className="text-sm font-bold text-rose-600">已选择 {selectedModels.length} 个模特</span>
-                  <div className="flex space-x-2">
-                    <button onClick={() => handleBatchModelDelete()} className="px-3 py-1.5 bg-rose-500 text-white rounded-lg text-sm font-bold">批量删除</button>
-                    <button onClick={() => setSelectedModels([])} className="px-3 py-1.5 bg-gray-200 text-gray-600 rounded-lg text-sm font-bold">取消选择</button>
+                              // 显示进度提示
+                              const totalModels = MODEL_LIBRARY.length;
+                              let successCount = 0;
+                              let failCount = 0;
+
+                              // 批量保存到数据库
+                              for (const model of MODEL_LIBRARY) {
+                                const success = await addModel(model);
+                                if (success) {
+                                  successCount++;
+                                } else {
+                                  failCount++;
+                                }
+                              }
+
+                              // 更新内存中的模特列表
+                              onModelsUpdate(MODEL_LIBRARY);
+
+                              // 显示结果
+                              if (failCount === 0) {
+                                alert(`✅ 成功导入 ${successCount} 个模特到数据库！`);
+                              } else {
+                                alert(`⚠️ 导入完成：成功 ${successCount} 个，失败 ${failCount} 个`);
+                              }
+                            } catch (error) {
+                              console.error('导入模特失败:', error);
+                              alert('❌ 导入失败，请检查控制台错误信息');
+                            }
+                          }
+                        }}
+                        className="flex items-center space-x-2 px-4 py-2 bg-blue-500 text-white rounded-xl font-bold hover:bg-blue-600 transition-colors"
+                      >
+                        <Download size={18} />
+                        <span>导入默认模特</span>
+                      </button>
+                    )}
+                    <button onClick={() => setModelUploadModal(true)} className="flex items-center space-x-2 px-4 py-2 bg-rose-500 text-white rounded-xl font-bold">
+                      <Upload size={18} />
+                      <span>上传模特</span>
+                    </button>
                   </div>
                 </div>
-              )}
 
-              {/* 模特网格 */}
-              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                {filteredModels.map(model => (
-                  <div key={model.id} className={`relative group rounded-2xl overflow-hidden border-2 transition-all ${selectedModels.includes(model.id) ? 'border-rose-500 shadow-lg' : 'border-gray-200 hover:border-rose-300'}`}>
-                    <div className="aspect-[3/4] bg-gray-100">
-                      <img src={model.url} className="w-full h-full object-cover" />
+                {/* 筛选器 */}
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                  <div className="relative">
+                    <Search size={16} className="absolute left-3 top-3 text-gray-400" />
+                    <input
+                      type="text"
+                      placeholder="搜索模特..."
+                      value={modelFilter.search}
+                      onChange={e => setModelFilter({ ...modelFilter, search: e.target.value })}
+                      className="w-full pl-10 pr-3 py-2.5 bg-gray-50 border-2 border-transparent focus:border-rose-400 rounded-xl outline-none text-sm"
+                    />
+                  </div>
+                  <select value={modelFilter.gender} onChange={e => setModelFilter({ ...modelFilter, gender: e.target.value })} className="px-3 py-2.5 bg-gray-50 border-2 border-transparent focus:border-rose-400 rounded-xl outline-none text-sm">
+                    <option value="">所有性别</option>
+                    {config.genders.map(g => <option key={g} value={g}>{g}</option>)}
+                  </select>
+                  <select value={modelFilter.ageGroup} onChange={e => setModelFilter({ ...modelFilter, ageGroup: e.target.value })} className="px-3 py-2.5 bg-gray-50 border-2 border-transparent focus:border-rose-400 rounded-xl outline-none text-sm">
+                    <option value="">所有年龄</option>
+                    {config.ageGroups.map(a => <option key={a} value={a}>{a}</option>)}
+                  </select>
+                  <select value={modelFilter.ethnicity} onChange={e => setModelFilter({ ...modelFilter, ethnicity: e.target.value })} className="px-3 py-2.5 bg-gray-50 border-2 border-transparent focus:border-rose-400 rounded-xl outline-none text-sm">
+                    <option value="">所有国籍</option>
+                    {config.ethnicities.map(e => <option key={e} value={e}>{e}</option>)}
+                  </select>
+                </div>
+
+                {/* 批量操作 */}
+                {selectedModels.length > 0 && (
+                  <div className="flex items-center justify-between p-4 bg-rose-50 rounded-2xl mb-6">
+                    <span className="text-sm font-bold text-rose-600">已选择 {selectedModels.length} 个模特</span>
+                    <div className="flex space-x-2">
+                      <button onClick={() => handleBatchModelDelete()} className="px-3 py-1.5 bg-rose-500 text-white rounded-lg text-sm font-bold">批量删除</button>
+                      <button onClick={() => setSelectedModels([])} className="px-3 py-1.5 bg-gray-200 text-gray-600 rounded-lg text-sm font-bold">取消选择</button>
                     </div>
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
-                      <div className="absolute bottom-0 left-0 right-0 p-3">
-                        <p className="text-white text-xs font-bold truncate">{model.name || `模特${model.id.slice(-4)}`}</p>
-                        <p className="text-white/80 text-[10px]">{model.gender} · {model.ageGroup} · {model.ethnicity}</p>
+                  </div>
+                )}
+
+                {/* 模特网格 */}
+                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                  {filteredModels.map(model => (
+                    <div key={model.id} className={`relative group rounded-2xl overflow-hidden border-2 transition-all ${selectedModels.includes(model.id) ? 'border-rose-500 shadow-lg' : 'border-gray-200 hover:border-rose-300'}`}>
+                      <div className="aspect-[3/4] bg-gray-100">
+                        <img src={model.url} className="w-full h-full object-cover" />
+                      </div>
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="absolute bottom-0 left-0 right-0 p-3">
+                          <p className="text-white text-xs font-bold truncate">{model.name || `模特${model.id.slice(-4)}`}</p>
+                          <p className="text-white/80 text-[10px]">
+                            {getModelFieldLabel('gender', model.gender)} · {getModelFieldLabel('ageGroup', model.ageGroup)} · {getModelFieldLabel('ethnicity', model.ethnicity)}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button onClick={() => toggleModelSelection(model.id)} className={`w-6 h-6 rounded-full border-2 ${selectedModels.includes(model.id) ? 'bg-rose-500 border-rose-500' : 'bg-white border-gray-300'}`}>
+                          {selectedModels.includes(model.id) && <Check size={12} className="text-white mx-auto" />}
+                        </button>
+                      </div>
+                      <div className="absolute top-2 left-2">
+                        <span className={`px-2 py-0.5 rounded-full text-[8px] font-bold ${model.status === 'ACTIVE' ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-600'}`}>
+                          {model.status === 'ACTIVE' ? '启用' : '禁用'}
+                        </span>
                       </div>
                     </div>
-                    <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button onClick={() => toggleModelSelection(model.id)} className={`w-6 h-6 rounded-full border-2 ${selectedModels.includes(model.id) ? 'bg-rose-500 border-rose-500' : 'bg-white border-gray-300'}`}>
-                        {selectedModels.includes(model.id) && <Check size={12} className="text-white mx-auto" />}
-                      </button>
-                    </div>
-                    <div className="absolute top-2 left-2">
-                      <span className={`px-2 py-0.5 rounded-full text-[8px] font-bold ${model.status === 'ACTIVE' ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-600'}`}>
-                        {model.status === 'ACTIVE' ? '启用' : '禁用'}
-                      </span>
+                  ))}
+                </div>
+
+                {filteredModels.length === 0 && (
+                  <div className="text-center py-12">
+                    <Upload size={48} className="text-gray-300 mx-auto mb-4" />
+                    <p className="text-gray-400 font-bold">暂无模特数据</p>
+                    <p className="text-gray-300 text-sm mt-1">点击上方按钮上传模特照片</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* 参考图库管理 */}
+            {resourceTab === 'references' && (
+              <div className="bg-white rounded-3xl border p-8">
+                <div className="flex items-center justify-between mb-8">
+                  <div>
+                    <h3 className="text-xl font-black">参考图库</h3>
+                    <p className="text-sm text-gray-400 mt-1">上传和管理参考图片，支持按类型筛选</p>
+                  </div>
+                  <button onClick={() => setReferenceUploadModal(true)} className="flex items-center space-x-2 px-4 py-2 bg-rose-500 text-white rounded-xl font-bold">
+                    <Upload size={18} />
+                    <span>上传参考图</span>
+                  </button>
+                </div>
+
+                {/* 筛选器 */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                  <div className="relative">
+                    <Search size={16} className="absolute left-3 top-3 text-gray-400" />
+                    <input
+                      type="text"
+                      placeholder="搜索参考图..."
+                      value={referenceFilter.search}
+                      onChange={e => setReferenceFilter({ ...referenceFilter, search: e.target.value })}
+                      className="w-full pl-10 pr-3 py-2.5 bg-gray-50 border-2 border-transparent focus:border-rose-400 rounded-xl outline-none text-sm"
+                    />
+                  </div>
+                  <select value={referenceFilter.type} onChange={e => setReferenceFilter({ ...referenceFilter, type: e.target.value })} className="px-3 py-2.5 bg-gray-50 border-2 border-transparent focus:border-rose-400 rounded-xl outline-none text-sm">
+                    <option value="">所有类型</option>
+                    <option value="model">模特展示图</option>
+                    <option value="product">纯服装展示图</option>
+                  </select>
+                </div>
+
+                {/* 批量操作 */}
+                {selectedReferences.length > 0 && (
+                  <div className="flex items-center justify-between p-4 bg-rose-50 rounded-2xl mb-6">
+                    <span className="text-sm font-bold text-rose-600">已选择 {selectedReferences.length} 张参考图</span>
+                    <div className="flex space-x-2">
+                      <button onClick={() => {
+                        if (confirm(`确定要删除选中的 ${selectedReferences.length} 张参考图吗？`)) {
+                          const refsToDelete = referenceImages.filter(r => selectedReferences.includes(r.id));
+                          refsToDelete.forEach(async (ref) => {
+                            if (ref.url.includes('supabase.co')) {
+                              const { deleteImage } = await import('../lib/storage.ts');
+                              await deleteImage(ref.url);
+                            }
+                            const { deleteReferenceImage } = await import('../lib/database.ts');
+                            await deleteReferenceImage(ref.id);
+                          });
+                          onReferenceImagesUpdate(referenceImages.filter(r => !selectedReferences.includes(r.id)));
+                          setSelectedReferences([]);
+                        }
+                      }} className="px-3 py-1.5 bg-rose-500 text-white rounded-lg text-sm font-bold">批量删除</button>
+                      <button onClick={() => setSelectedReferences([])} className="px-3 py-1.5 bg-gray-200 text-gray-600 rounded-lg text-sm font-bold">取消选择</button>
                     </div>
                   </div>
-                ))}
-              </div>
+                )}
 
-              {filteredModels.length === 0 && (
-                <div className="text-center py-12">
-                  <Upload size={48} className="text-gray-300 mx-auto mb-4" />
-                  <p className="text-gray-400 font-bold">暂无模特数据</p>
-                  <p className="text-gray-300 text-sm mt-1">点击上方按钮上传模特照片</p>
+                {/* 参考图网格 */}
+                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                  {filteredReferences.map(ref => (
+                    <div key={ref.id} className={`relative group rounded-2xl overflow-hidden border-2 transition-all ${selectedReferences.includes(ref.id) ? 'border-rose-500 shadow-lg' : 'border-gray-200 hover:border-rose-300'}`}>
+                      <div className="aspect-[3/4] bg-gray-100">
+                        <img src={ref.url} className="w-full h-full object-cover" alt={ref.name} />
+                      </div>
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="absolute bottom-0 left-0 right-0 p-3">
+                          <p className="text-white text-xs font-bold truncate">{ref.name || `参考图${ref.id.slice(-4)}`}</p>
+                          <p className="text-white/80 text-[10px]">{getReferenceTypeLabel(ref.type)}</p>
+                        </div>
+                      </div>
+                      <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button onClick={() => toggleReferenceSelection(ref.id)} className={`w-6 h-6 rounded-full border-2 ${selectedReferences.includes(ref.id) ? 'bg-rose-500 border-rose-500' : 'bg-white border-gray-300'}`}>
+                          {selectedReferences.includes(ref.id) && <Check size={12} className="text-white mx-auto" />}
+                        </button>
+                      </div>
+                      <div className="absolute top-2 left-2">
+                        <span className={`px-2 py-0.5 rounded-full text-[8px] font-bold ${ref.status === 'ACTIVE' ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-600'}`}>
+                          {ref.status === 'ACTIVE' ? '启用' : '禁用'}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              )}
-            </div>
+
+                {filteredReferences.length === 0 && (
+                  <div className="text-center py-12">
+                    <ImageIcon size={48} className="text-gray-300 mx-auto mb-4" />
+                    <p className="text-gray-400 font-bold">暂无参考图数据</p>
+                    <p className="text-gray-300 text-sm mt-1">点击上方按钮上传参考图片</p>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )
       }
@@ -525,6 +796,207 @@ const AdminPage: React.FC<Props> = ({ activeTab, setView, allUsers, onUserUpdate
                   </div>
                 </div>
               ))}
+            </div>
+          </div>
+        )
+      }
+
+      {/* 提示词管理页面 */}
+      {
+        currentTab === AppView.PROMPTS && (
+          <div className="space-y-6">
+            <div className="bg-white rounded-3xl border p-8">
+              <div className="mb-8">
+                <h3 className="text-xl font-black">AI 提示词模板管理</h3>
+                <p className="text-sm text-gray-400 mt-1">自定义 AI 生成提示词模板，优化图片生成效果</p>
+              </div>
+
+              {editingPromptTemplate ? (
+                // 编辑单个模板
+                <div className="flex-1 flex flex-col">
+                  <div className="mb-4">
+                    <h4 className="text-lg font-bold text-gray-800 mb-2">
+                      {
+                        isEditingReferencePrompt ? (
+                          editingPromptTemplate === 'mainGuidance' ? '主要指导模板' :
+                            editingPromptTemplate === 'strictMode' ? '严格模式描述' :
+                              editingPromptTemplate === 'flexibleMode' ? '灵活模式描述' :
+                                editingPromptTemplate === 'elementExtraction' ? '元素提取指导' :
+                                  editingPromptTemplate === 'criticalNotice' ? '关键提示语' :
+                                    editingPromptTemplate
+                        ) : (
+                          editingPromptTemplate === 'mainPrompt' ? '主提示词' :
+                            editingPromptTemplate === 'modelModePrompt' ? '真人模特模式提示词' :
+                              editingPromptTemplate === 'productModePrompt' ? '纯服装展示模式提示词' :
+                                editingPromptTemplate === 'sceneGuidance' ? '场景指导' :
+                                  editingPromptTemplate === 'qualityGuidance' ? '画质指导' :
+                                    '额外指导'
+                        )
+                      }
+                    </h4>
+                    <p className="text-xs text-gray-400">
+                      {isEditingReferencePrompt
+                        ? `使用 {{变量名}} 格式插入占位符：{{mode}}, {{elements}}, {{custom_instruction}}, {{critical_notice}}`
+                        : `使用 {{变量名}} 格式插入占位符`
+                      }
+                    </p>
+                  </div>
+                  <textarea
+                    value={promptValue}
+                    onChange={e => setPromptValue(e.target.value)}
+                    className="flex-1 w-full p-4 bg-gray-50 border-2 border-transparent focus:border-rose-400 rounded-xl outline-none text-sm font-mono resize-none min-h-[400px]"
+                    placeholder="输入提示词模板..."
+                  />
+                  <div className="mt-4 flex space-x-3">
+                    <button
+                      onClick={() => {
+                        setEditingPromptTemplate(null);
+                        setPromptValue('');
+                        setIsEditingReferencePrompt(false);
+                      }}
+                      className="flex-1 py-3 bg-gray-100 text-gray-600 rounded-xl font-bold"
+                    >
+                      取消
+                    </button>
+                    <button
+                      onClick={() => handlePromptSave(editingPromptTemplate)}
+                      className="flex-1 py-3 bg-rose-500 text-white rounded-xl font-bold hover:bg-rose-600 transition-colors"
+                    >
+                      保存修改
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                // 模板列表
+                <div className="space-y-6">
+                  {/* AI 提示词部分 */}
+                  <div>
+                    <h4 className="text-sm font-bold text-gray-700 mb-3 flex items-center">
+                      <MessageSquare size={16} className="mr-2 text-rose-500" />
+                      AI 生成提示词
+                    </h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {config.promptTemplates && Object.keys(config.promptTemplates).length > 0 ? (
+                        Object.entries(config.promptTemplates)
+                          .filter(([_, value]) => typeof value === 'string')
+                          .map(([key, value]) => {
+                            const templateValue = value as string;
+                            return (
+                              <div
+                                key={key}
+                                onClick={() => {
+                                  setEditingPromptTemplate(key as keyof SystemConfig['promptTemplates']);
+                                  setPromptValue(templateValue);
+                                  setIsEditingReferencePrompt(false);
+                                }}
+                                className="p-6 bg-white rounded-2xl border border-gray-200 hover:border-rose-400 cursor-pointer group transition-all"
+                              >
+                                <div className="flex items-start justify-between">
+                                  <div className="flex-1">
+                                    <div className="flex items-center space-x-3 mb-3">
+                                      <div className="p-2 bg-rose-50 text-rose-500 rounded-lg">
+                                        <MessageSquare size={18} />
+                                      </div>
+                                      <div>
+                                        <h5 className="text-sm font-bold text-gray-800">
+                                          {
+                                            key === 'mainPrompt' ? '核心任务提示词' :
+                                              key === 'modelModePrompt' ? '真人模特渲染模型' :
+                                                key === 'productModePrompt' ? '产品展示增强' :
+                                                  key === 'sceneGuidance' ? '环境光效指导' :
+                                                    key === 'qualityGuidance' ? '画质与精度控制' :
+                                                      key === 'additionalGuidance' ? '细节微调规则' :
+                                                        key
+                                          }
+                                        </h5>
+                                        <span className="text-[10px] font-bold px-2 py-0.5 bg-gray-100 text-gray-400 rounded-full">
+                                          {templateValue.length} 字符
+                                        </span>
+                                      </div>
+                                    </div>
+                                    <div className="bg-gray-50 rounded-lg p-3">
+                                      <p className="text-[11px] text-gray-500 font-mono line-clamp-2">
+                                        {templateValue}
+                                      </p>
+                                    </div>
+                                  </div>
+                                  <div className="ml-3 text-gray-300 group-hover:text-rose-500 transition-colors">
+                                    <ChevronRight size={18} />
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })
+                      ) : (
+                        <div className="col-span-2 text-center py-8">
+                          <p className="text-gray-400 text-sm">暂无提示词模板配置</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* 参考图提示词部分 */}
+                  {config.referencePromptTemplates?.enabled && (
+                    <div>
+                      <h4 className="text-sm font-bold text-gray-700 mb-3 flex items-center">
+                        <ImageIcon size={16} className="mr-2 text-purple-500" />
+                        参考图提示词
+                      </h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {Object.entries(config.referencePromptTemplates)
+                          .filter(([_, value]) => typeof value === 'string')
+                          .map(([key, value]) => {
+                            const templateValue = value as string;
+                            return (
+                              <div
+                                key={key}
+                                onClick={() => {
+                                  setEditingPromptTemplate(key as keyof SystemConfig['referencePromptTemplates']);
+                                  setPromptValue(templateValue);
+                                  setIsEditingReferencePrompt(true);
+                                }}
+                                className="p-6 bg-white rounded-2xl border border-gray-200 hover:border-purple-400 cursor-pointer group transition-all"
+                              >
+                                <div className="flex items-start justify-between">
+                                  <div className="flex-1">
+                                    <div className="flex items-center space-x-3 mb-3">
+                                      <div className="p-2 bg-purple-50 text-purple-500 rounded-lg">
+                                        <ImageIcon size={18} />
+                                      </div>
+                                      <div>
+                                        <h5 className="text-sm font-bold text-gray-800">
+                                          {
+                                            key === 'mainGuidance' ? '主要指导模板' :
+                                              key === 'strictMode' ? '严格模式描述' :
+                                                key === 'flexibleMode' ? '灵活模式描述' :
+                                                  key === 'elementExtraction' ? '元素提取指导' :
+                                                    key === 'criticalNotice' ? '关键提示语' :
+                                                      key
+                                          }
+                                        </h5>
+                                        <span className="text-[10px] font-bold px-2 py-0.5 bg-purple-100 text-purple-500 rounded-full">
+                                          参考图模板
+                                        </span>
+                                      </div>
+                                    </div>
+                                    <div className="bg-gray-50 rounded-lg p-3">
+                                      <p className="text-[11px] text-gray-500 font-mono line-clamp-2">
+                                        {templateValue}
+                                      </p>
+                                    </div>
+                                  </div>
+                                  <div className="ml-3 text-gray-300 group-hover:text-purple-500 transition-colors">
+                                    <ChevronRight size={18} />
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         )
@@ -932,6 +1404,170 @@ const AdminPage: React.FC<Props> = ({ activeTab, setView, allUsers, onUserUpdate
         )
       }
 
+      {/* 参考图上传模态框 */}
+      {
+        referenceUploadModal && (
+          <div className="fixed inset-0 z-[120] flex items-center justify-center p-6">
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setReferenceUploadModal(false)}></div>
+            <div className="relative bg-white rounded-[2.5rem] w-full max-w-lg p-8 shadow-2xl animate-in zoom-in-95">
+              <h3 className="text-2xl font-black mb-6">上传参考图</h3>
+
+              {/* 参考图信息表单 */}
+              <div className="space-y-4 mb-6">
+                <div>
+                  <label className="text-xs font-black text-gray-400 uppercase tracking-widest mb-2 block">图片名称</label>
+                  <input
+                    type="text"
+                    value={referenceUploadInfo.name}
+                    onChange={e => setReferenceUploadInfo({ ...referenceUploadInfo, name: e.target.value })}
+                    placeholder="输入图片名称（可选）"
+                    className="w-full px-3 py-2.5 bg-gray-50 border-2 border-transparent focus:border-rose-400 rounded-xl outline-none text-sm"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-black text-gray-400 uppercase tracking-widest mb-2 block">图片类型 *</label>
+                  <select
+                    value={referenceUploadInfo.type}
+                    onChange={e => setReferenceUploadInfo({ ...referenceUploadInfo, type: e.target.value })}
+                    className="w-full px-3 py-2.5 bg-gray-50 border-2 border-transparent focus:border-rose-400 rounded-xl outline-none text-sm"
+                    required
+                  >
+                    <option value="">选择类型</option>
+                    <option value="model">模特展示图</option>
+                    <option value="product">纯服装展示图</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* 上传区域 */}
+              <div
+                className="border-2 border-dashed border-gray-200 hover:border-rose-400 rounded-2xl p-8 text-center transition-colors cursor-pointer"
+                onClick={() => {
+                  const input = document.createElement('input');
+                  input.type = 'file';
+                  input.multiple = true;
+                  input.accept = 'image/*';
+                  input.onchange = (e: any) => {
+                    const files = e.target.files;
+                    if (files && files.length > 0) {
+                      setSelectedReferenceFiles(files);
+                      const previews: string[] = [];
+                      Array.from(files as FileList).forEach((file: File) => {
+                        const reader = new FileReader();
+                        reader.onload = (ev) => {
+                          previews.push(ev.target?.result as string);
+                          if (previews.length === files.length) {
+                            setPreviewReferenceImages(previews);
+                          }
+                        };
+                        reader.readAsDataURL(file);
+                      });
+                    }
+                  };
+                  input.click();
+                }}
+              >
+                <Upload size={48} className="text-gray-300 mx-auto mb-4" />
+                <p className="text-gray-600 font-bold mb-2">
+                  {selectedReferenceFiles && selectedReferenceFiles.length > 0
+                    ? `已选择 ${selectedReferenceFiles.length} 张图片`
+                    : '点击上传'}
+                </p>
+                <p className="text-gray-400 text-sm">支持 JPG、PNG 格式，可批量上传</p>
+              </div>
+
+              {/* 预览 */}
+              {previewReferenceImages.length > 0 && (
+                <div className="mt-6">
+                  <p className="text-xs font-black text-gray-400 uppercase tracking-widest mb-3">
+                    已选择 {previewReferenceImages.length} 张图片
+                  </p>
+                  <div className="grid grid-cols-4 gap-3 max-h-64 overflow-y-auto p-2">
+                    {previewReferenceImages.map((img, index) => (
+                      <div key={index} className="relative aspect-[3/4] rounded-xl overflow-hidden border-2 border-gray-200">
+                        <img src={img} className="w-full h-full object-cover" alt={`预览 ${index + 1}`} />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="mt-6 flex space-x-3">
+                <button
+                  onClick={() => {
+                    setReferenceUploadModal(false);
+                    setSelectedReferenceFiles(null);
+                    setPreviewReferenceImages([]);
+                    setReferenceUploadInfo({ type: '', name: '' });
+                  }}
+                  className="flex-1 py-3 bg-gray-100 text-gray-600 rounded-xl font-bold"
+                >
+                  取消
+                </button>
+                <button
+                  onClick={async () => {
+                    if (!referenceUploadInfo.type) {
+                      alert('请选择图片类型！');
+                      return;
+                    }
+                    if (!selectedReferenceFiles || selectedReferenceFiles.length === 0) {
+                      alert('请选择要上传的图片！');
+                      return;
+                    }
+
+                    try {
+                      const newReferences: ReferenceImageEntry[] = [];
+                      for (let index = 0; index < selectedReferenceFiles.length; index++) {
+                        const file = selectedReferenceFiles[index];
+                        const { uploadImage } = await import('../lib/storage.ts');
+                        const publicUrl = await uploadImage(file, 'admin', 'references');
+
+                        if (!publicUrl) {
+                          alert(`上传 ${file.name} 失败！`);
+                          continue;
+                        }
+
+                        const newRef: ReferenceImageEntry = {
+                          id: `ref_${Date.now()}_${index}`,
+                          url: publicUrl,
+                          type: referenceUploadInfo.type as 'model' | 'product',
+                          name: referenceUploadInfo.name || file.name.split('.')[0],
+                          uploadedBy: 'admin',
+                          uploadedAt: new Date().toISOString(),
+                          status: 'ACTIVE'
+                        };
+
+                        const { addReferenceImage } = await import('../lib/database.ts');
+                        const success = await addReferenceImage(newRef);
+                        if (success) {
+                          newReferences.push(newRef);
+                        }
+                      }
+
+                      if (newReferences.length > 0) {
+                        onReferenceImagesUpdate([...referenceImages, ...newReferences]);
+                        alert(`成功上传 ${newReferences.length} 张参考图！`);
+                        setReferenceUploadModal(false);
+                        setSelectedReferenceFiles(null);
+                        setPreviewReferenceImages([]);
+                        setReferenceUploadInfo({ type: '', name: '' });
+                      }
+                    } catch (error) {
+                      console.error('上传参考图失败:', error);
+                      alert('上传失败，请重试！');
+                    }
+                  }}
+                  className="flex-1 py-3 bg-rose-500 text-white rounded-xl font-bold hover:bg-rose-600 transition-colors"
+                >
+                  确认上传
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      }
+
       {
         previewScreenshot && (
           <div className="fixed inset-0 z-[130] flex items-center justify-center p-6 bg-black/95" onClick={() => setPreviewScreenshot(null)}>
@@ -1015,58 +1651,60 @@ const AdminPage: React.FC<Props> = ({ activeTab, setView, allUsers, onUserUpdate
                       </h4>
                       <div className="space-y-3">
                         {config.promptTemplates && Object.keys(config.promptTemplates).length > 0 ? (
-                          Object.entries(config.promptTemplates).map(([key, value]) => {
-                            const templateValue = value as string;
-                            return (
-                              <div
-                                key={key}
-                                onClick={() => {
-                                  setEditingPromptTemplate(key as keyof SystemConfig['promptTemplates']);
-                                  setPromptValue(templateValue);
-                                  setIsEditingReferencePrompt(false);
-                                }}
-                                className="p-6 bg-white rounded-3xl border border-gray-100 shadow-sm hover:shadow-xl hover:border-rose-400 cursor-pointer group transition-all relative overflow-hidden"
-                              >
-                                <div className="absolute top-0 right-0 w-24 h-24 bg-rose-500/5 blur-3xl rounded-full -mr-8 -mt-8 group-hover:bg-rose-500/10 transition-colors" />
-                                <div className="flex items-start justify-between relative z-10">
-                                  <div className="flex-1">
-                                    <div className="flex items-center space-x-3 mb-3">
-                                      <div className="p-2.5 bg-rose-50 text-rose-500 rounded-xl group-hover:scale-110 transition-transform">
-                                        <MessageSquare size={20} />
-                                      </div>
-                                      <div>
-                                        <h5 className="text-sm font-black text-gray-800">
-                                          {
-                                            key === 'mainPrompt' ? '核心任务提示词 (Main Strategy)' :
-                                              key === 'modelModePrompt' ? '真人模特渲染模型 (Model Engine)' :
-                                                key === 'productModePrompt' ? '产品展示增强 (Product Logic)' :
-                                                  key === 'sceneGuidance' ? '环境光效指导 (Atmosphere)' :
-                                                    key === 'qualityGuidance' ? '画质与精度控制 (Resolution)' :
-                                                      key === 'additionalGuidance' ? '细节微调规则 (Fine-tuning)' :
-                                                        key
-                                          }
-                                        </h5>
-                                        <div className="flex items-center space-x-2 mt-0.5">
-                                          <span className="text-[8px] font-black px-2 py-0.5 bg-gray-100 text-gray-400 rounded-full uppercase tracking-tighter">System Template</span>
-                                          <span className={`text-[8px] font-black px-2 py-0.5 rounded-full uppercase tracking-tighter ${templateValue.length > 100 ? 'bg-green-50 text-green-500' : 'bg-blue-50 text-blue-500'}`}>
-                                            {templateValue.length > 100 ? 'Advanced' : 'Standard'}
-                                          </span>
+                          Object.entries(config.promptTemplates)
+                            .filter(([_, value]) => typeof value === 'string') // ✅ 过滤非字符串值，防止渲染对象导致奔溃
+                            .map(([key, value]) => {
+                              const templateValue = value as string;
+                              return (
+                                <div
+                                  key={key}
+                                  onClick={() => {
+                                    setEditingPromptTemplate(key as keyof SystemConfig['promptTemplates']);
+                                    setPromptValue(templateValue);
+                                    setIsEditingReferencePrompt(false);
+                                  }}
+                                  className="p-6 bg-white rounded-3xl border border-gray-100 shadow-sm hover:shadow-xl hover:border-rose-400 cursor-pointer group transition-all relative overflow-hidden"
+                                >
+                                  <div className="absolute top-0 right-0 w-24 h-24 bg-rose-500/5 blur-3xl rounded-full -mr-8 -mt-8 group-hover:bg-rose-500/10 transition-colors" />
+                                  <div className="flex items-start justify-between relative z-10">
+                                    <div className="flex-1">
+                                      <div className="flex items-center space-x-3 mb-3">
+                                        <div className="p-2.5 bg-rose-50 text-rose-500 rounded-xl group-hover:scale-110 transition-transform">
+                                          <MessageSquare size={20} />
+                                        </div>
+                                        <div>
+                                          <h5 className="text-sm font-black text-gray-800">
+                                            {
+                                              key === 'mainPrompt' ? '核心任务提示词 (Main Strategy)' :
+                                                key === 'modelModePrompt' ? '真人模特渲染模型 (Model Engine)' :
+                                                  key === 'productModePrompt' ? '产品展示增强 (Product Logic)' :
+                                                    key === 'sceneGuidance' ? '环境光效指导 (Atmosphere)' :
+                                                      key === 'qualityGuidance' ? '画质与精度控制 (Resolution)' :
+                                                        key === 'additionalGuidance' ? '细节微调规则 (Fine-tuning)' :
+                                                          key
+                                            }
+                                          </h5>
+                                          <div className="flex items-center space-x-2 mt-0.5">
+                                            <span className="text-[8px] font-black px-2 py-0.5 bg-gray-100 text-gray-400 rounded-full uppercase tracking-tighter">System Template</span>
+                                            <span className={`text-[8px] font-black px-2 py-0.5 rounded-full uppercase tracking-tighter ${templateValue.length > 100 ? 'bg-green-50 text-green-500' : 'bg-blue-50 text-blue-500'}`}>
+                                              {templateValue.length > 100 ? 'Advanced' : 'Standard'}
+                                            </span>
+                                          </div>
                                         </div>
                                       </div>
+                                      <div className="bg-gray-50/50 rounded-2xl p-4 border border-gray-100/50">
+                                        <p className="text-[11px] text-gray-500 leading-relaxed font-mono line-clamp-2">
+                                          {templateValue}
+                                        </p>
+                                      </div>
                                     </div>
-                                    <div className="bg-gray-50/50 rounded-2xl p-4 border border-gray-100/50">
-                                      <p className="text-[11px] text-gray-500 leading-relaxed font-mono line-clamp-2">
-                                        {templateValue}
-                                      </p>
+                                    <div className="ml-4 p-2 text-gray-300 group-hover:text-rose-500 transition-colors">
+                                      <ChevronRight size={20} />
                                     </div>
-                                  </div>
-                                  <div className="ml-4 p-2 text-gray-300 group-hover:text-rose-500 transition-colors">
-                                    <ChevronRight size={20} />
                                   </div>
                                 </div>
-                              </div>
-                            );
-                          })
+                              );
+                            })
                         ) : (
                           <div className="text-center py-8">
                             <p className="text-gray-400 text-sm">暂无提示词模板配置</p>
@@ -1084,7 +1722,7 @@ const AdminPage: React.FC<Props> = ({ activeTab, setView, allUsers, onUserUpdate
                         </h4>
                         <div className="space-y-3">
                           {Object.entries(config.referencePromptTemplates)
-                            .filter(([key]) => key !== 'enabled')
+                            .filter(([_, value]) => typeof value === 'string')
                             .map(([key, value]) => {
                               const templateValue = value as string;
                               return (
@@ -1139,49 +1777,56 @@ const AdminPage: React.FC<Props> = ({ activeTab, setView, allUsers, onUserUpdate
                         </div>
                       </div>
                     )}
+
+                    {/* 🔥 Vision 分析提示词部分 */}
+
+
                   </div>
                 </div>
               )}
             </div>
           </div>
-        )}
+        )
+      }
 
       {/* 保存结果提示模态框 */}
-      {saveResultModal.show && (
-        <div className="fixed inset-0 z-[400] flex items-center justify-center p-6">
-          <div className="absolute inset-0 bg-black/70 backdrop-blur-md"></div>
-          <div className="relative bg-white rounded-[3rem] w-full max-w-md p-10 shadow-2xl animate-in zoom-in-95">
-            {/* 图标 */}
-            <div className={`w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6 ${saveResultModal.success ? 'bg-green-100' : 'bg-rose-100'}`}>
-              <span className="text-5xl">{saveResultModal.success ? '✅' : '❌'}</span>
+      {
+        saveResultModal.show && (
+          <div className="fixed inset-0 z-[400] flex items-center justify-center p-6">
+            <div className="absolute inset-0 bg-black/70 backdrop-blur-md"></div>
+            <div className="relative bg-white rounded-[3rem] w-full max-w-md p-10 shadow-2xl animate-in zoom-in-95">
+              {/* 图标 */}
+              <div className={`w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6 ${saveResultModal.success ? 'bg-green-100' : 'bg-rose-100'}`}>
+                <span className="text-5xl">{saveResultModal.success ? '✅' : '❌'}</span>
+              </div>
+
+              {/* 标题 */}
+              <h3 className={`text-3xl font-black text-center mb-4 ${saveResultModal.success ? 'text-green-600' : 'text-rose-600'}`}>
+                {saveResultModal.success ? '保存成功' : '保存失败'}
+              </h3>
+
+              {/* 消息内容 */}
+              <div className="bg-gray-50 rounded-2xl p-6 mb-8">
+                <p className="text-center text-gray-700 whitespace-pre-line font-medium">
+                  {saveResultModal.message}
+                </p>
+              </div>
+
+              {/* 关闭按钮 */}
+              <button
+                onClick={() => setSaveResultModal({ show: false, success: false, message: '' })}
+                className={`w-full py-4 rounded-2xl font-black text-lg uppercase tracking-widest transition-all ${saveResultModal.success
+                  ? 'bg-green-500 hover:bg-green-600 text-white'
+                  : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
+                  }`}
+              >
+                确定
+              </button>
             </div>
-
-            {/* 标题 */}
-            <h3 className={`text-3xl font-black text-center mb-4 ${saveResultModal.success ? 'text-green-600' : 'text-rose-600'}`}>
-              {saveResultModal.success ? '保存成功' : '保存失败'}
-            </h3>
-
-            {/* 消息内容 */}
-            <div className="bg-gray-50 rounded-2xl p-6 mb-8">
-              <p className="text-center text-gray-700 whitespace-pre-line font-medium">
-                {saveResultModal.message}
-              </p>
-            </div>
-
-            {/* 关闭按钮 */}
-            <button
-              onClick={() => setSaveResultModal({ show: false, success: false, message: '' })}
-              className={`w-full py-4 rounded-2xl font-black text-lg uppercase tracking-widest transition-all ${saveResultModal.success
-                ? 'bg-green-500 hover:bg-green-600 text-white'
-                : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
-                }`}
-            >
-              确定
-            </button>
           </div>
-        </div>
-      )}
-    </div>
+        )
+      }
+    </div >
   );
 };
 
