@@ -13,9 +13,9 @@ export function PureClothingParams({ value, onChange, config }: PureClothingPara
     const currentValue = value || {
         ratio: '3:4',
         quality: '2K',
-        background: '纯白底-电商标准',
+        background: '',
         angle: '平铺-微褶皱自然',
-        style: '可爱风',
+        style: '',
         focus: ''
     };
 
@@ -76,6 +76,7 @@ export function PureClothingParams({ value, onChange, config }: PureClothingPara
                         onChange={(e) => handleChange({ ...currentValue, background: e.target.value })}
                         className="w-full px-4 py-3 bg-white border-2 border-gray-200 rounded-xl text-sm font-semibold text-gray-700 focus:border-rose-400 outline-none transition-all"
                     >
+                        <option value="">默认</option>
                         {currentConfig.productBackgrounds.map((bg) => (
                             <option key={bg} value={bg}>
                                 {bg}
@@ -91,6 +92,7 @@ export function PureClothingParams({ value, onChange, config }: PureClothingPara
                         onChange={(e) => handleChange({ ...currentValue, style: e.target.value })}
                         className="w-full px-4 py-3 bg-white border-2 border-gray-200 rounded-xl text-sm font-semibold text-gray-700 focus:border-rose-400 outline-none transition-all"
                     >
+                        <option value="">默认</option>
                         {currentConfig.styles.map((style) => (
                             <option key={style} value={style}>
                                 {style}

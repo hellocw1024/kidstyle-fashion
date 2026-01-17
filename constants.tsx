@@ -39,18 +39,28 @@ export const INITIAL_CONFIG: SystemConfig = {
   ],
   productForms: ['平铺-微褶皱自然', '挂拍-无痕隐形', '3D建模-立体支撑'],
   productFocus: ['整体呈现', '面料质感特写', '工艺细节(领口/刺绣)'],
-  productBackgrounds: ['纯白底-电商标准', '木纹底-温馨感', '大理石-轻奢感', '地毯绒面'],
+  productBackgrounds: ['纯白底-电商标准', '木纹底-温馨感', '大理石-轻奢感', '地毯绒面', '自然光影-窗边', '纯色背景板'],
   ratios: ['1:1', '3:4', '16:9'],
   qualities: ['1K', '2K', '4K'],
+  remakeModes: ['背景复刻', '姿态复刻', '完全复刻'],
+
+  // 🔥 新增：复刻模式默认提示词
+  remakePrompts: {
+    scene: 'STRICTLY COPY THE BACKGROUND: Use the reference image as the absolute source for the background environment, lighting, and mood. DO NOT change the scene. However, replace the person in the reference with the generated model wearing the input clothing. The model\'s pose should be natural and fit this scene.',
+    pose: 'STRICTLY COPY THE POSE: The generated model must match the exact body pose, hand placement, and head angle of the person in the reference image. IGNORE the background of the reference image; generate a new background based on the scene description.',
+    complete: 'COMPLETE REPLICATION: Recreate the entire reference image (background, lighting, composition, pose) exactly as seen. The ONLY change should be that the model is wearing the specific clothing provided in the input.'
+  },
+
   // AI 提示词模板
   promptTemplates: {
-    mainPrompt: `TASK: Professional children's clothing commercial photography.
+    customMainPrompt: `TASK: Professional children's clothing commercial photography.
 
 INSTRUCTIONS: Analyze the reference clothing images and the scene settings:
 1. **SCENE**: Match the scene to the clothing's style{{scene}} (Automatically select or refine the most suitable scene)
 2. **ATMOSPHERE**: Ensure the lighting and colors complement the clothing's aesthetic.
 
 STYLE: {{style}}
+EMOTION: {{emotion}}
 QUALITY: {{quality}} - extremely high detail, commercial catalog quality.
 
 {{mode_prompt}}
@@ -62,11 +72,71 @@ QUALITY: {{quality}} - extremely high detail, commercial catalog quality.
 CRITICAL IDENTITY RULES:
 1. IF A MODEL IMAGE IS PROVIDED: You MUST maintain 100% facial identity consistency. The child in the generated image must be the EXACT SAME PERSON as in the model photo. Capture every detail: eye shape, nose structure, lip curve, eyebrow thickness, and hair texture.
 2. The generated child must look like they walked directly from the model photo into this new scene.
+
+CRITICAL CLOTHING RULES:
+1. DO NOT modify the clothing design, cut, or primary identifiers (logos, patterns).
+2. DO NOT add accessories (hats, scarves) unless specified.
+3. The clothing image provided is the GROUND TRUTH.
+
+Render the clothing with accurate colors, patterns, and fabric texture. The background, lighting, and atmosphere should match the overall style.`,
+
+    remakeMainPrompt: `TASK: Professional children's clothing commercial photography (REMAKE MODE).
+
+INSTRUCTIONS: Analyze the reference clothing images and the scene settings:
+1. **SCENE**: Match the scene to the clothing's style{{scene}} (Automatically select or refine the most suitable scene)
+2. **ATMOSPHERE**: Ensure the lighting and colors complement the clothing's aesthetic.
+
+STYLE: {{style}}
+EMOTION: {{emotion}}
+QUALITY: {{quality}} - extremely high detail, commercial catalog quality.
+
+{{mode_prompt}}
+
+{{scene_guidance}}
+
+{{custom_prompt}}
+
+CRITICAL IDENTITY RULES:
+1. IF A MODEL IMAGE IS PROVIDED: You MUST maintain 100% facial identity consistency. The child in the generated image must be the EXACT SAME PERSON as in the model photo. Capture every detail: eye shape, nose structure, lip curve, eyebrow thickness, and hair texture.
+2. The generated child must look like they walked directly from the model photo into this new scene.
+
+CRITICAL CLOTHING RULES:
+1. DO NOT modify the clothing design, cut, or primary identifiers (logos, patterns).
+2. DO NOT add accessories (hats, scarves) unless specified.
+3. The clothing image provided is the GROUND TRUTH.
+
+Render the clothing with accurate colors, patterns, and fabric texture. The background, lighting, and atmosphere should match the overall style.`,
+
+    templateMainPrompt: `TASK: Professional children's clothing commercial photography (TEMPLATE MODE).
+
+INSTRUCTIONS: Analyze the reference clothing images and the scene settings:
+1. **SCENE**: Match the scene to the clothing's style{{scene}} (Automatically select or refine the most suitable scene)
+2. **ATMOSPHERE**: Ensure the lighting and colors complement the clothing's aesthetic.
+
+STYLE: {{style}}
+EMOTION: {{emotion}}
+QUALITY: {{quality}} - extremely high detail, commercial catalog quality.
+
+{{mode_prompt}}
+
+{{scene_guidance}}
+
+{{custom_prompt}}
+
+CRITICAL IDENTITY RULES:
+1. IF A MODEL IMAGE IS PROVIDED: You MUST maintain 100% facial identity consistency. The child in the generated image must be the EXACT SAME PERSON as in the model photo. Capture every detail: eye shape, nose structure, lip curve, eyebrow thickness, and hair texture.
+2. The generated child must look like they walked directly from the model photo into this new scene.
+
+CRITICAL CLOTHING RULES:
+1. DO NOT modify the clothing design, cut, or primary identifiers (logos, patterns).
+2. DO NOT add accessories (hats, scarves) unless specified.
+3. The clothing image provided is the GROUND TRUTH.
+
 Render the clothing with accurate colors, patterns, and fabric texture. The background, lighting, and atmosphere should match the overall style.`,
     modelModePrompt: `MODE: ON-MODEL PROFESSIONAL PHOTOSHOOT
 IDENTITY: ABSOLUTE CONSISTENCY REQUIRED. Use the attached model photo as the ONLY reference for the child's identity, face, and hair.
 MODEL DETAILS: {{gender}} child, age {{ageGroup}}, {{ethnicity}} heritage.
-POSE & EMOTION: {{pose}}
+POSE: {{pose}}
 COMPOSITION: {{composition}}`,
     productModePrompt: `MODE: PRODUCT DISPLAY (STILL LIFE)
 FORM: {{productForm}}
@@ -79,37 +149,16 @@ Use extremely high detail, commercial catalog quality standards.`,
     additionalGuidance: `ADDITIONAL DETAILS: {{customPrompt}}`,
     // 🔥 自动模式指令（当用户选择 Auto 时使用）
     autoModeInstructions: {
-      gender: 'suitable child model (boy or girl based on clothing style)',
-      ageGroup: 'age appropriate for the clothing size/style',
-      ethnicity: 'suitable heritage',
-      scene: 'automatically determined'
+      gender: 'cute child model (selected to best fit the clothing style)',
+      ageGroup: 'optimal age for this clothing size',
+      ethnicity: 'diverse',
+      scene: 'high-end commercial photography studio with soft, professional lighting'
     }
   },
 
   // 🔥 参考图提示词模板
   referencePromptTemplates: {
     enabled: true,
-    mainGuidance: `REFERENCE IMAGE GUIDANCE:
-You have been provided with a reference image alongside the clothing images. Use it as follows:
-- Reference Mode: {{mode}}
-- Extract these elements from the reference: {{elements}}
-- Apply these extracted elements to the clothing you are generating
-{{custom_instruction}}
-
-{{critical_notice}}`,
-    strictMode: `STRICTLY FOLLOW the reference style closely`,
-    flexibleMode: `Use as FLEXIBLE INSPIRATION while maintaining your own creativity`,
-    elementExtraction: `Extract and apply: {{elements}}`,
-    criticalNotice: `CRITICAL: The CLOTHING must come from the uploaded clothing images, but the STYLE/ATMOSPHERE should match the reference image.`,
-    // 🔥 提取关键词配置
-    extractionKeywords: {
-      background: 'background environment',
-      pose: 'pose and body position',
-      expression: 'facial expression and mood',
-      lighting: 'lighting and atmosphere',
-      composition: 'composition and framing',
-      all: 'all visual elements'
-    }
   },
 
 

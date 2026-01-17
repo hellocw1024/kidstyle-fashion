@@ -5,7 +5,7 @@ import { ReferenceImageGallery } from './ReferenceImageGallery';
 import { IconPalette, IconImage } from './icons/AppIcons';
 import { ModelSelector } from './ModelSelector';
 import { ModelLibrarySelector } from './ModelLibrarySelector';
-import { ReferenceImage, Model } from '../types';
+import { ReferenceImage, Model, SystemConfig } from '../types';
 
 interface RemakeModeProps {
     onGenerate: () => void;
@@ -14,6 +14,8 @@ interface RemakeModeProps {
     onReferenceSelect?: (url: string) => void;
     models?: Model[];
     onModelUpload?: (file: File) => Promise<void>;
+    config?: SystemConfig;
+    onRemakeTypeChange?: (type: 'scene' | 'pose' | 'complete') => void;
 }
 
 export const RemakeMode: React.FC<RemakeModeProps> = ({
@@ -22,7 +24,9 @@ export const RemakeMode: React.FC<RemakeModeProps> = ({
     initialReferenceImageUrl,
     onReferenceSelect,
     models = [],
-    onModelUpload
+    onModelUpload,
+    config,
+    onRemakeTypeChange
 }) => {
     const [step, setStep] = useState(1);
     const [remakeType, setRemakeType] = useState<'scene' | 'pose' | 'complete'>('complete');
@@ -53,26 +57,40 @@ export const RemakeMode: React.FC<RemakeModeProps> = ({
         }
     }, [initialReferenceImageUrl]);
 
-    const remakeOptions = [
-        {
-            id: 'scene' as const,
+    // 从配置中获取复刻方式，如果没有则使用默认值
+    const configuredRemakeModes = config?.remakeModes || ['背景复刻', '姿态复刻', '完全复刻'];
+
+    // 映射配置的选项到完整的选项对象
+    const remakeOptionsMap: Record<string, { id: 'scene' | 'pose' | 'complete', icon: string, description: string }> = {
+        '背景复刻': {
+            id: 'scene',
             icon: '🏠',
-            title: '背景复刻',
             description: '只复制参考图的场景、光线、氛围，模特姿态由AI自动生成'
         },
-        {
-            id: 'pose' as const,
+        '姿态复刻': {
+            id: 'pose',
             icon: '🧍',
-            title: '姿态复刻',
             description: '只复制参考图的姿势、表情、动作，场景背景由AI自动生成'
         },
-        {
-            id: 'complete' as const,
+        '完全复刻': {
+            id: 'complete',
             icon: '✨',
-            title: '完全复刻',
             description: '完全复制参考图的所有元素，包括背景、姿态、构图、光线'
         }
-    ];
+    };
+
+    // 根据配置生成选项列表
+    const remakeOptions = configuredRemakeModes
+        .map(modeName => {
+            const option = remakeOptionsMap[modeName];
+            if (!option) return null;
+            return {
+                ...option,
+                title: modeName
+            };
+        })
+        .filter(Boolean) as Array<{ id: 'scene' | 'pose' | 'complete', icon: string, title: string, description: string }>;
+
 
     const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
@@ -174,8 +192,8 @@ export const RemakeMode: React.FC<RemakeModeProps> = ({
 
             <hr className="border-gray-200" />
 
-            {/* Step 2.5: Select Model (only if reference is model type) */}
-            {selectedImageCategory === 'model' && (
+            {/* Step 2.5: Select Model (Always allow selection) */}
+            {(true) && (
                 <>
                     <div>
                         <div className="flex items-center gap-2 mb-3">
@@ -216,14 +234,56 @@ export const RemakeMode: React.FC<RemakeModeProps> = ({
                                 <div className="animate-in fade-in slide-in-from-top-2 duration-300">
                                     <FileUploader
                                         label="上传模特图片"
-                                        onFileSelect={(file) => {
+                                        onUpload={(file) => {
                                             setModelImage(file);
                                             if (onModelUpload) onModelUpload(file);
                                         }}
-                                        selectedFile={modelImage}
                                         accept="image/*"
-                                        height={200}
+                                        validationType="model"
                                     />
+                                </div>
+                            )}
+
+                            {/* Preview selected model from library */}
+                            {modelSource === 'library' && selectedModelId && models && (
+                                <div className="animate-in fade-in slide-in-from-top-2 duration-300">
+                                    {(() => {
+                                        const selectedModel = models.find(m => m.id === selectedModelId);
+                                        if (!selectedModel) return null;
+
+                                        return (
+                                            <div className="relative group w-48 mx-auto">
+                                                <div className="aspect-[3/4] rounded-xl overflow-hidden bg-gray-100 border-2 border-rose-200 shadow-sm relative isolate">
+                                                    <img
+                                                        src={selectedModel.url}
+                                                        alt={selectedModel.name || '已选择的模特'}
+                                                        className="w-full h-full object-cover"
+                                                    />
+                                                    {/* Gradient Overlay */}
+                                                    <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/80 via-black/40 to-transparent pointer-events-none" />
+
+                                                    {/* Content Container */}
+                                                    <div className="absolute inset-x-0 bottom-0 p-3 pt-6 flex items-end justify-between z-10">
+                                                        <div className="flex-1 min-w-0 mr-2 text-white">
+                                                            <p className="font-semibold text-sm truncate">{selectedModel.name || '模特'}</p>
+                                                            <p className="text-xs opacity-90">{selectedModel.gender} · {selectedModel.age_group}</p>
+                                                        </div>
+                                                        <button
+                                                            type="button"
+                                                            onClick={(e) => {
+                                                                e.preventDefault();
+                                                                e.stopPropagation();
+                                                                setModelLibraryModal(true);
+                                                            }}
+                                                            className="px-3 py-1.5 bg-rose-500 hover:bg-rose-600 active:bg-rose-700 text-white text-xs font-bold rounded-lg transition-colors shadow-lg cursor-pointer shrink-0"
+                                                        >
+                                                            更换模特
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })()}
                                 </div>
                             )}
                         </div>
@@ -260,7 +320,10 @@ export const RemakeMode: React.FC<RemakeModeProps> = ({
                                 name="remakeType"
                                 value={option.id}
                                 checked={remakeType === option.id}
-                                onChange={() => setRemakeType(option.id)}
+                                onChange={() => {
+                                    setRemakeType(option.id);
+                                    if (onRemakeTypeChange) onRemakeTypeChange(option.id);
+                                }}
                                 className="sr-only"
                             />
                             <div className="flex flex-col items-center gap-2 text-center">
@@ -284,7 +347,48 @@ export const RemakeMode: React.FC<RemakeModeProps> = ({
                 size="lg"
                 fullWidth
                 icon={<IconPalette active={!!isReady} />}
-                onClick={onGenerate}
+                onClick={() => {
+                    const payload: any = {
+                        type: 'remake',
+                        clothingImage: clothingImage,
+                        remakeType: remakeType,
+                        referenceConfig: {
+                            enabled: true,
+                            remakeMode: remakeType,
+                            // Ensure strict adherence to connection
+                            referenceMode: 'STRICT',
+                            extractElements: {
+                                background: true,
+                                pose: true,
+                                expression: true,
+                                lighting: true,
+                                composition: true
+                            }
+                        }
+                    };
+
+                    // Add reference image (either file or URL)
+                    if (selectedReferenceUrl) {
+                        payload.referenceImage = selectedReferenceUrl;
+                    } else if (referenceImage) {
+                        payload.referenceImage = referenceImage; // File object handled by service logic
+                        // Note: Service might expect URL logic, so we might need object URL in HomePage if it's a File
+                        // But HomePage handleGenerate converts currentParameters.modelImage/clothingImage to ObjectURL
+                        // Let's attach it as a specific property expected by HomePage
+                    }
+
+                    // If we have a custom model upload
+                    if (modelImage) {
+                        payload.modelImage = modelImage;
+                    } else if (modelSource === 'library' && selectedModelId) {
+                        const selectedModel = models.find(m => m.id === selectedModelId);
+                        if (selectedModel) {
+                            payload.modelImage = selectedModel.url;
+                        }
+                    }
+
+                    onGenerate(payload);
+                }}
                 disabled={!isReady}
             >
                 🎨 生成同款

@@ -57,6 +57,7 @@ interface TemplateModeProps {
 
 export const TemplateMode: React.FC<TemplateModeProps> = ({ onGenerate }) => {
     const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
+    const [clothingImage, setClothingImage] = useState<File | null>(null);
     const [activeCategory, setActiveCategory] = useState('全部');
 
     const categories = ['全部', '时尚', '清新', '复古', '可爱'];
@@ -139,7 +140,7 @@ export const TemplateMode: React.FC<TemplateModeProps> = ({ onGenerate }) => {
             {/* Upload Clothing */}
             <FileUploader
                 label="📤 上传服装"
-                onUpload={(file) => console.log('Clothing uploaded:', file)}
+                onUpload={(file) => setClothingImage(file)}
             />
 
             <hr className="border-gray-200" />
@@ -150,8 +151,30 @@ export const TemplateMode: React.FC<TemplateModeProps> = ({ onGenerate }) => {
                 size="lg"
                 fullWidth
                 icon={<IconSparkles active={!!selectedTemplate} />}
-                onClick={() => onGenerate()}
-                disabled={!selectedTemplate}
+                onClick={() => {
+                    if (selectedTemplate && clothingImage) {
+                        const payload = {
+                            type: 'template',
+                            clothingImage: clothingImage,
+                            // Map template params to generation params
+                            modelDisplayParams: {
+                                scene: selectedTemplate.params.scene,
+                                style: selectedTemplate.params.style,
+                                composition: selectedTemplate.params.composition,
+                                ratio: selectedTemplate.params.ratio,
+                                // Defaults
+                                quality: '2K',
+                                pose: ''
+                            },
+                            // Default logical params for template mode
+                            gender: 'girl', // Should arguably be part of template metadata or auto-detected
+                            ageGroup: '3-5',
+                            ethnicity: 'asian'
+                        };
+                        onGenerate(payload);
+                    }
+                }}
+                disabled={!selectedTemplate || !clothingImage}
             >
                 使用模板生成
                 <span className="text-xs opacity-90">（消耗 1 配额）</span>

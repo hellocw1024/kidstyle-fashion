@@ -55,6 +55,7 @@ export const HomePage: React.FC<HomePageProps> = ({
     const [currentNegativePrompt, setCurrentNegativePrompt] = useState('');
     const [currentParameters, setCurrentParameters] = useState<Record<string, any>>({});
     const [selectedRemakeImage, setSelectedRemakeImage] = useState<string | null>(null);
+    const [remakeType, setRemakeType] = useState<'scene' | 'pose' | 'complete'>('complete');
 
     // --- Gallery Logic States ---
     const [activeFilter, setActiveFilter] = useState('all');
@@ -137,14 +138,16 @@ export const HomePage: React.FC<HomePageProps> = ({
             quality: params?.modelDisplayParams?.quality || params?.pureClothingParams?.quality || '2K',
             scene: params?.modelDisplayParams?.scene,
             gender: params?.gender,
-            ageGroup: params?.ageGroup || '3-5',
+            ageGroup: params?.ageGroup,
             ethnicity: params?.ethnicity,
             pose: params?.modelDisplayParams?.pose,
+            emotion: params?.modelDisplayParams?.emotion,
             composition: params?.modelDisplayParams?.composition,
             productForm: params?.pureClothingParams?.angle,
             productFocus: params?.pureClothingParams?.focus,
             productBackground: params?.pureClothingParams?.background,
-            referenceConfig: params?.referenceConfig
+            referenceConfig: params?.referenceConfig,
+            customPrompt: params?.modelDisplayParams?.advancedDetail // 🔥 Pass advanced detail
         }, config?.promptTemplates || undefined, config?.referencePromptTemplates || undefined);
 
         const negativePrompt = 'blurry, low quality, low resolution, pixelated, grainy, noisy, out of focus, soft focus, poor quality, bad anatomy, distorted, deformed, disfigured, extra limbs, extra fingers, mutated, malformed, missing limbs, poorly drawn, wrong clothing color, incorrect pattern, different design, altered clothing, modified outfit, changed style, different face, changed facial features, wrong person, altered appearance, inconsistent model, face swap, watermark, text, signature, logo overlay, copyright mark, username, timestamp, frame border, cropped, cut off, partial view, out of frame, bad composition, awkward angle, distorted perspective, surreal, abstract, unrealistic, fake looking, artificial, CGI, cartoon, illustration, drawing';
@@ -174,23 +177,50 @@ export const HomePage: React.FC<HomePageProps> = ({
             const clothingFile = currentParameters.clothingImage;
             const modelFile = currentParameters.modelImage;
             const clothingUrl = clothingFile ? URL.createObjectURL(clothingFile) : undefined;
-            const modelUrl = modelFile ? URL.createObjectURL(modelFile) : undefined;
+            // 🔥 Fix: modelFile might be a string (URL) or a File
+            const modelUrl = typeof modelFile === 'string'
+                ? modelFile
+                : (modelFile ? URL.createObjectURL(modelFile) : undefined);
 
             const result = await generateClothingImage({
                 style: currentParameters.modelDisplayParams?.style || currentParameters.pureClothingParams?.style,
                 type: displayType === 'model' ? 'MODEL' : 'PRODUCT',
+                appMode: currentParameters.mode, // 🔥 Pass app mode
                 ageGroup: currentParameters.ageGroup,
                 gender: currentParameters.gender,
                 ethnicity: currentParameters.ethnicity,
                 scene: currentParameters.modelDisplayParams?.scene,
+                pose: currentParameters.modelDisplayParams?.pose,
+                emotion: currentParameters.modelDisplayParams?.emotion, // 🔥 Pass emotion
+                composition: currentParameters.modelDisplayParams?.composition,
+                productForm: currentParameters.pureClothingParams?.angle,
+                productFocus: currentParameters.pureClothingParams?.focus,
+                productBackground: currentParameters.pureClothingParams?.background,
                 quality: currentParameters.modelDisplayParams?.quality || currentParameters.pureClothingParams?.quality || '2K',
                 aspectRatio: currentParameters.modelDisplayParams?.ratio || currentParameters.pureClothingParams?.ratio || '3:4',
                 modelImage: modelUrl,
                 baseImages: clothingUrl ? [clothingUrl] : undefined,
-                customPrompt: currentPrompt,
+                overridePrompt: currentPrompt, // 🔥 Use the previewed prompt directly (WYSIWYG)
                 promptTemplates: config?.promptTemplates,
                 referencePromptTemplates: config?.referencePromptTemplates,
+                remakePrompts: config?.remakePrompts, // 🔥 传递复刻提示词配置
                 overridePrompt: currentPrompt,
+
+                // 🔥 复刻模式参数
+                referenceImage: mode === 'remake' ? (selectedRemakeImage || undefined) : undefined,
+                referenceConfig: mode === 'remake' ? {
+                    enabled: true,
+                    referenceMode: 'STRICT',
+                    // 在复刻模式下，这些具体开关实际上会被 specialty prompt 覆盖，但仍需填充以满足类型
+                    extractElements: {
+                        background: true,
+                        pose: true,
+                        expression: true,
+                        lighting: true,
+                        composition: true
+                    },
+                    remakeMode: remakeType // 🔥 传递用户选择的复刻方式
+                } : undefined,
             });
 
             if (result && result.url) {
@@ -270,6 +300,8 @@ export const HomePage: React.FC<HomePageProps> = ({
                     onReferenceSelect={(url) => setSelectedRemakeImage(url)}
                     models={models}
                     onModelUpload={handleModelUpload}
+                    config={config}
+                    onRemakeTypeChange={setRemakeType}
                 />;
             case 'template':
                 return <TemplateMode onGenerate={handleGenerate} />;

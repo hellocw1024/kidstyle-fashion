@@ -44,10 +44,12 @@ export function buildPrompt(params: {
   quality: string;
   scene?: string;
   type: string;
+  appMode?: string; // 🔥 新增：应用模式 (custom, remake, template)
   gender?: string;
   ageGroup?: string;
   ethnicity?: string;
   pose?: string;
+  emotion?: string; // 🔥 新增：情绪
   composition?: string;
   productForm?: string;
   productFocus?: string;
@@ -65,37 +67,60 @@ export function buildPrompt(params: {
       composition: boolean;
     };
     customInstruction?: string;
+    // 🔥 新增：复刻模式（优先级高于通用参考配置）
+    remakeMode?: 'scene' | 'pose' | 'complete';
   };
-}, promptTemplates: typeof INITIAL_CONFIG.promptTemplates, referencePromptTemplates?: typeof INITIAL_CONFIG.referencePromptTemplates) {
-  const { mainPrompt, modelModePrompt, productModePrompt, sceneGuidance, qualityGuidance, additionalGuidance, autoModeInstructions } = promptTemplates;
+}, promptTemplates: typeof INITIAL_CONFIG.promptTemplates, referencePromptTemplates?: typeof INITIAL_CONFIG.referencePromptTemplates, remakePrompts?: typeof INITIAL_CONFIG.remakePrompts) {
+  // Determine App Mode (default to custom if not provided)
+  const appMode = params.appMode || 'custom';
+
+  const { customMainPrompt, remakeMainPrompt, templateMainPrompt, modelModePrompt, productModePrompt, sceneGuidance, qualityGuidance, additionalGuidance, autoModeInstructions } = promptTemplates;
+
+  // Select the correct main prompt based on App Mode
+  let mainPrompt = customMainPrompt; // Default
+  if (appMode === 'remake') {
+    mainPrompt = remakeMainPrompt;
+  } else if (appMode === 'template') {
+    mainPrompt = templateMainPrompt;
+  }
 
   // === 🔥 构建参考图指导（使用可配置模板）===
   let referenceGuidance = '';
-  if (params.referenceConfig?.enabled && referencePromptTemplates && referencePromptTemplates.enabled) {
-    const { referenceMode, extractElements, customInstruction } = params.referenceConfig;
-    const refTemplates = referencePromptTemplates;
 
-    // 🔥 使用配置的关键词构建元素列表
-    const keywords = refTemplates.extractionKeywords || INITIAL_CONFIG.referencePromptTemplates.extractionKeywords;
+  // 优先级1: 特定的复刻模式 (Remake Mode)
+  if (params.referenceConfig?.enabled && params.referenceConfig.remakeMode) {
+    const mode = params.referenceConfig.remakeMode;
+    // 优先使用传入的配置，否则回退到默认配置
+    const prompts = remakePrompts || INITIAL_CONFIG.remakePrompts;
+    if (prompts && prompts[mode]) {
+      referenceGuidance = `REFERENCE MODE: ${mode.toUpperCase()} REMAKE\n${prompts[mode]}`;
+      // 如果有自定义指令，追加在后面
+      if (params.referenceConfig.customInstruction) {
+        referenceGuidance += `\nAdditional instruction: ${params.referenceConfig.customInstruction}`;
+      }
+    }
+  }
+  // 优先级2: 通用参考配置 (Generic Reference Config)
+  else if (params.referenceConfig?.enabled) {
+    const { referenceMode, extractElements, customInstruction } = params.referenceConfig;
 
     const elementsToExtract = [];
-    if (extractElements.background) elementsToExtract.push(keywords.background);
-    if (extractElements.pose) elementsToExtract.push(keywords.pose);
-    if (extractElements.expression) elementsToExtract.push(keywords.expression);
-    if (extractElements.lighting) elementsToExtract.push(keywords.lighting);
-    if (extractElements.composition) elementsToExtract.push(keywords.composition);
+    if (extractElements.background) elementsToExtract.push('background environment');
+    if (extractElements.pose) elementsToExtract.push('pose and body position');
+    if (extractElements.expression) elementsToExtract.push('facial expression and mood');
+    if (extractElements.lighting) elementsToExtract.push('lighting and atmosphere');
+    if (extractElements.composition) elementsToExtract.push('composition and framing');
 
-    const elementsStr = elementsToExtract.length > 0 ? elementsToExtract.join(', ') : keywords.all;
+    const elementsStr = elementsToExtract.length > 0 ? elementsToExtract.join(', ') : 'all visual elements';
+    const modeDescription = referenceMode === 'STRICT' ? 'STRICTLY FOLLOW the reference style closely' : 'Use as FLEXIBLE INSPIRATION';
 
-    // 获取模式描述
-    const modeDescription = referenceMode === 'STRICT' ? refTemplates.strictMode : refTemplates.flexibleMode;
+    referenceGuidance = `REFERENCE IMAGE GUIDANCE:
+You have been provided with a reference image. Use it as follows:
+- Reference Mode: ${modeDescription}
+- Extract and apply these elements: ${elementsStr}
+${customInstruction ? `- Additional instruction: ${customInstruction}` : ''}
 
-    // 使用可配置模板，替换占位符
-    referenceGuidance = refTemplates.mainGuidance
-      .replace(/{{mode}}/g, modeDescription)
-      .replace(/{{elements}}/g, elementsStr)
-      .replace(/{{custom_instruction}}/g, customInstruction ? `- Additional instruction: ${customInstruction}` : '')
-      .replace(/{{critical_notice}}/g, refTemplates.criticalNotice);
+CRITICAL: The CLOTHING must come from the uploaded clothing images, but the STYLE/ATMOSPHERE should match the reference image.`;
   }
 
   // 替换模板中的占位符
@@ -105,25 +130,47 @@ export function buildPrompt(params: {
   // 使用配置中的指令
   const instructions = autoModeInstructions || INITIAL_CONFIG.promptTemplates.autoModeInstructions;
 
-  // 🛡️ 兼容性处理：如果检测到旧的硬编码默认值组合，则视为 Auto 模式
-  // (用户反馈即使未选择也会出现这些值，可能是旧状态残留)
-  // (用户反馈即使未选择也会出现这些值，可能是旧状态残留)
-  // const isLegacyDefault = params.gender === 'boy' && params.ageGroup === '3-5' && params.ethnicity === 'asian';
+  // 🛡️ 优先使用模特图中的特征 (如果提供了模特图且未指定参数)
+  const defaultGender = params.modelImage ? 'Match gender of the model in the provided photo' : instructions.gender;
+  const defaultAge = params.modelImage ? 'Match age of the model in the provided photo' : instructions.ageGroup;
+  const defaultEthnicity = params.modelImage ? 'Match ethnicity of the model in the provided photo' : instructions.ethnicity;
 
-  const genderInstruction = params.gender ? (params.gender === 'boy' ? 'boy' : 'girl') : instructions.gender;
-  const ageInstruction = params.ageGroup || instructions.ageGroup;
-  const ethnicityInstruction = params.ethnicity || instructions.ethnicity;
+  const genderInstruction = params.gender ? (params.gender === 'boy' ? 'boy' : 'girl') : defaultGender;
+  const ageInstruction = params.ageGroup || defaultAge;
+  const ethnicityInstruction = params.ethnicity || defaultEthnicity;
+
+  // 🔥 4. 智能抑制逻辑 (Smart Suppression)
+  // 如果是复刻模式 (scene/complete) 或 自定义模式下勾选了 "Background" 提取
+  const isRemakeScene =
+    params.referenceConfig?.remakeMode === 'scene' ||
+    params.referenceConfig?.remakeMode === 'complete' ||
+    params.referenceConfig?.extractElements?.background === true;
+
+  // 如果是复刻模式 (pose/complete) 或 自定义模式下勾选了 "Pose" 提取
+  const isRemakePose =
+    params.referenceConfig?.remakeMode === 'pose' ||
+    params.referenceConfig?.remakeMode === 'complete' ||
+    params.referenceConfig?.extractElements?.pose === true;
+
+  // 如果是复刻背景，强制忽略默认的场景描述（避免 "Studio" vs "Park" 冲突）
+  const targetScene = isRemakeScene ? 'Use background from reference image' : (params.scene || instructions.scene);
+
+  // 如果是复刻姿态，强制忽略默认姿态
+  const targetPose = isRemakePose ? 'Use pose from reference image' : (params.pose || '');
+  const targetComposition = isRemakePose ? 'Use composition from reference image' : (params.composition || '');
 
   modePrompt = modePrompt.replace(/{{gender}}/g, genderInstruction)
     .replace(/{{ageGroup}}/g, ageInstruction)
     .replace(/{{ethnicity}}/g, ethnicityInstruction)
-    .replace(/{{pose}}/g, params.pose || '')
-    .replace(/{{composition}}/g, params.composition || '')
+    .replace(/{{ethnicity}}/g, ethnicityInstruction)
+    .replace(/{{pose}}/g, targetPose)
+    .replace(/{{emotion}}/g, params.emotion ? `Match emotion: ${params.emotion}` : '')  // 🔥 替换 emotion
+    .replace(/{{composition}}/g, targetComposition)
     .replace(/{{productForm}}/g, params.productForm || '')
     .replace(/{{productFocus}}/g, params.productFocus || '')
     .replace(/{{productBackground}}/g, params.productBackground || '');
 
-  let sceneInfo = params.scene ? sceneGuidance.replace(/{{scene}}/g, params.scene) : '';
+  let sceneInfo = targetScene ? sceneGuidance.replace(/{{scene}}/g, targetScene) : '';
 
   let qualityInfo = qualityGuidance.replace(/{{quality}}/g, params.quality);
 
@@ -135,7 +182,8 @@ export function buildPrompt(params: {
     .replace(/{{scene}}/g, params.scene ? params.scene : instructions.scene)
     .replace(/{{mode_prompt}}/g, modePrompt)
     .replace(/{{scene_guidance}}/g, sceneInfo)
-    .replace(/{{custom_prompt}}/g, customInfo);
+    .replace(/{{custom_prompt}}/g, customInfo)
+    .replace(/{{emotion}}/g, params.emotion || ''); // 🔥 修复：在主模板中替换 emotion
 
   // 🔥 添加参考图指导（放在最前面，确保AI优先理解）
   if (referenceGuidance) {
@@ -148,11 +196,14 @@ export function buildPrompt(params: {
 export const generateClothingImage = async (params: {
   style: string;
   type: string;
+  appMode?: string; // 🔥 新增：应用模式
   ageGroup?: string;
   gender?: string;
   ethnicity?: string;
   composition?: string;
+  composition?: string;
   pose?: string;
+  emotion?: string; // 🔥 新增：情绪
   productForm?: string;
   productFocus?: string;
   productBackground?: string;
@@ -164,6 +215,7 @@ export const generateClothingImage = async (params: {
   modelImage?: string;
   promptTemplates?: typeof INITIAL_CONFIG.promptTemplates;
   referencePromptTemplates?: typeof INITIAL_CONFIG.referencePromptTemplates;
+  remakePrompts?: typeof INITIAL_CONFIG.remakePrompts; // 🔥 新增：复刻模式提示词配置
   // 🔥 新增：参考图参数
   referenceImage?: string;
   referenceConfig?: {
@@ -177,9 +229,12 @@ export const generateClothingImage = async (params: {
       composition: boolean;
     };
     customInstruction?: string;
+    remakeMode?: 'scene' | 'pose' | 'complete'; // 🔥 新增：复刻模式
   };
   // 🔥 新增：覆盖提示词（所见即所得）
   overridePrompt?: string;
+  // 🔥 新增：负向提示词
+  negativePrompt?: string;
 }) => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const isHighQuality = params.quality === '4K' || params.quality === '2K';
@@ -188,14 +243,20 @@ export const generateClothingImage = async (params: {
   // 使用配置的提示词模板，如果没有提供则使用默认模板
   const templates = params.promptTemplates || INITIAL_CONFIG.promptTemplates;
   const refTemplates = params.referencePromptTemplates || INITIAL_CONFIG.referencePromptTemplates;
+  const remakePrompts = params.remakePrompts || INITIAL_CONFIG.remakePrompts;
 
   // 🔥 核心逻辑：如果有 overridePrompt，直接使用，实现"所见即所得"
-  const prompt = params.overridePrompt
+  let prompt = params.overridePrompt
     ? params.overridePrompt
     : buildPrompt({
       ...params,
       referenceConfig: params.referenceConfig
-    }, templates, refTemplates);
+    }, templates, refTemplates, remakePrompts);
+
+  // 🔥 追加负向提示词 (Negative Prompt)
+  if (params.negativePrompt) {
+    prompt += `\n\nNEGATIVE PROMPT (EXCLUSIONS): ${params.negativePrompt}`;
+  }
 
   try {
     const contents: any = { parts: [{ text: prompt }] };

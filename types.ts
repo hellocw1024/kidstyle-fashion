@@ -35,9 +35,18 @@ export interface SystemConfig {
   productBackgrounds: string[]; // 背景材质
   ratios: string[]; // 比例选项
   qualities: string[]; // 质量选项
+  remakeModes: string[]; // 复刻方式选项（背景复刻、姿态复刻、完全复刻）
+  // 🔥 新增：复刻模式对应的提示词配置
+  remakePrompts: {
+    scene: string;    // 背景复刻提示词
+    pose: string;     // 姿态复刻提示词
+    complete: string; // 完全复刻提示词
+  };
   // AI 提示词模板
   promptTemplates: {
-    mainPrompt: string; // 主提示词模板
+    customMainPrompt: string;   // 自定义模式主提示词
+    remakeMainPrompt: string;   // 复刻模式主提示词
+    templateMainPrompt: string; // 模板模式主提示词
     modelModePrompt: string; // 真人模特模式提示词
     productModePrompt: string; // 纯服装展示模式提示词
     sceneGuidance: string; // 场景指导
@@ -55,20 +64,6 @@ export interface SystemConfig {
   // 🔥 参考图提示词模板
   referencePromptTemplates: {
     enabled: boolean; // 是否启用参考图功能
-    mainGuidance: string; // 主要指导（支持占位符：{{mode}}, {{elements}}）
-    strictMode: string; // 严格模式描述
-    flexibleMode: string; // 灵活模式描述
-    elementExtraction: string; // 元素提取指导（支持占位符：{{elements}}）
-    criticalNotice: string; // 关键提示语
-    // 🔥 提取关键词配置
-    extractionKeywords: {
-      background: string;
-      pose: string;
-      expression: string;
-      lighting: string;
-      composition: string;
-      all: string;
-    };
   };
 
 
@@ -118,9 +113,11 @@ export interface ModelDisplayParams {
   style: string;
   pose?: string;
   emotion?: string;
+  composition?: string;
   gender?: string;
   ageGroup?: string;
   ethnicity?: string;
+  advancedDetail?: string; // 🔥 新增：高级自定义详情
 }
 
 // 🔥 纯服装展示参数

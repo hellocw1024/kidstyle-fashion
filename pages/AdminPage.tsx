@@ -1,9 +1,9 @@
 import React, { useState, useRef } from 'react';
 import {
-  Users, CreditCard, ShoppingBag, TrendingUp, Check, X, Eye, Plus, Trash2, Save, Camera, Palette, Box, Maximize, UserCheck, Shirt, Upload, Download, Filter, Search, MessageSquare, ChevronRight, Image as ImageIcon
+  Users, CreditCard, ShoppingBag, TrendingUp, Check, X, Eye, Plus, Trash2, Save, Camera, Palette, Box, Maximize, UserCheck, Shirt, Upload, Download, Filter, Search, MessageSquare, ChevronRight, Image as ImageIcon, Settings
 } from 'lucide-react';
 import { RechargeRequest, AppView, User, SystemConfig, ReferenceImageEntry } from '../types.ts';
-import { ModelEntry } from '../constants.tsx';
+import { ModelEntry, INITIAL_CONFIG } from '../constants.tsx';
 
 interface Props {
   activeTab: AppView;
@@ -33,11 +33,13 @@ const AdminPage: React.FC<Props> = ({ activeTab, setView, allUsers, onUserUpdate
   const [previewImages, setPreviewImages] = useState<string[]>([]);
   const [promptModalOpen, setPromptModalOpen] = useState(false);
 
-  // 🔥 修改编辑提示词类型以包含参考图提示词
-  type PromptTemplateKey = keyof SystemConfig['promptTemplates'] | keyof SystemConfig['referencePromptTemplates'];
+  // 🔥 修改编辑提示词类型以包含参考图提示词和复刻提示词
+  type PromptTemplateKey = keyof SystemConfig['promptTemplates'] | keyof SystemConfig['referencePromptTemplates'] | keyof SystemConfig['remakePrompts'];
   const [editingPromptTemplate, setEditingPromptTemplate] = useState<PromptTemplateKey | null>(null);
   const [promptValue, setPromptValue] = useState('');
   const [isEditingReferencePrompt, setIsEditingReferencePrompt] = useState(false);
+  const [isEditingRemakePrompt, setIsEditingRemakePrompt] = useState(false);
+  const [isEditingAutoModePrompt, setIsEditingAutoModePrompt] = useState(false);
 
   // 用户管理相关 state
   const [userSearch, setUserSearch] = useState('');
@@ -118,8 +120,45 @@ const AdminPage: React.FC<Props> = ({ activeTab, setView, allUsers, onUserUpdate
 
   const handlePromptSave = (templateKey: PromptTemplateKey) => {
     const isReferencePrompt = Object.keys(config.referencePromptTemplates || {}).includes(templateKey);
+    // 使用 INITIAL_CONFIG 判断，防止数据库旧数据导致无法识别
+    const isRemakePrompt = Object.keys(INITIAL_CONFIG.remakePrompts || {}).includes(templateKey);
 
-    if (isReferencePrompt) {
+    if (isRemakePrompt) {
+      // 保存复刻模式提示词
+      const newConfig = {
+        ...config,
+        remakePrompts: {
+          ...(config.remakePrompts || INITIAL_CONFIG.remakePrompts),
+          [templateKey]: promptValue
+        }
+      };
+      onConfigUpdate(newConfig);
+      setEditingPromptTemplate(null);
+      setPromptValue('');
+      setIsEditingRemakePrompt(false);
+      setSaveResultModal({ show: true, success: true, message: `复刻模式提示词 "${templateKey}" 已更新` });
+
+    } else if (isEditingAutoModePrompt) {
+      // 保存自动模式提示词
+      // @ts-ignore
+      const field = templateKey;
+      const newConfig = {
+        ...config,
+        promptTemplates: {
+          ...config.promptTemplates,
+          autoModeInstructions: {
+            ...config.promptTemplates?.autoModeInstructions,
+            [field]: promptValue
+          }
+        }
+      };
+      onConfigUpdate(newConfig);
+      setEditingPromptTemplate(null);
+      setPromptValue('');
+      setIsEditingAutoModePrompt(false);
+      setSaveResultModal({ show: true, success: true, message: `自动模式 "${templateKey}" 默认值已更新` });
+
+    } else if (isReferencePrompt) {
       // 保存参考图提示词
       const newConfig = {
         ...config,
@@ -817,21 +856,34 @@ const AdminPage: React.FC<Props> = ({ activeTab, setView, allUsers, onUserUpdate
                   <div className="mb-4">
                     <h4 className="text-lg font-bold text-gray-800 mb-2">
                       {
-                        isEditingReferencePrompt ? (
-                          editingPromptTemplate === 'mainGuidance' ? '主要指导模板' :
-                            editingPromptTemplate === 'strictMode' ? '严格模式描述' :
-                              editingPromptTemplate === 'flexibleMode' ? '灵活模式描述' :
-                                editingPromptTemplate === 'elementExtraction' ? '元素提取指导' :
-                                  editingPromptTemplate === 'criticalNotice' ? '关键提示语' :
+                        isEditingRemakePrompt ? (
+                          editingPromptTemplate === 'scene' ? '背景复刻 (Background Remake)' :
+                            editingPromptTemplate === 'pose' ? '姿态复刻 (Pose Remake)' :
+                              editingPromptTemplate === 'complete' ? '完全复刻 (Complete Remake)' :
+                                editingPromptTemplate
+                        ) :
+                          isEditingAutoModePrompt ? (
+                            editingPromptTemplate === 'gender' ? '自动模式-性别逻辑' :
+                              editingPromptTemplate === 'ageGroup' ? '自动模式-年龄逻辑' :
+                                editingPromptTemplate === 'ethnicity' ? '自动模式-种族逻辑' :
+                                  editingPromptTemplate === 'scene' ? '自动模式-场景逻辑' :
                                     editingPromptTemplate
-                        ) : (
-                          editingPromptTemplate === 'mainPrompt' ? '主提示词' :
-                            editingPromptTemplate === 'modelModePrompt' ? '真人模特模式提示词' :
-                              editingPromptTemplate === 'productModePrompt' ? '纯服装展示模式提示词' :
-                                editingPromptTemplate === 'sceneGuidance' ? '场景指导' :
-                                  editingPromptTemplate === 'qualityGuidance' ? '画质指导' :
-                                    '额外指导'
-                        )
+                          ) :
+                            isEditingReferencePrompt ? (
+                              editingPromptTemplate === 'mainGuidance' ? '主要指导模板' :
+                                editingPromptTemplate === 'strictMode' ? '严格模式描述' :
+                                  editingPromptTemplate === 'flexibleMode' ? '灵活模式描述' :
+                                    editingPromptTemplate === 'elementExtraction' ? '元素提取指导' :
+                                      editingPromptTemplate === 'criticalNotice' ? '关键提示语' :
+                                        editingPromptTemplate
+                            ) : (
+                              editingPromptTemplate === 'mainPrompt' ? '主提示词' :
+                                editingPromptTemplate === 'modelModePrompt' ? '真人模特模式提示词' :
+                                  editingPromptTemplate === 'productModePrompt' ? '纯服装展示模式提示词' :
+                                    editingPromptTemplate === 'sceneGuidance' ? '场景指导' :
+                                      editingPromptTemplate === 'qualityGuidance' ? '画质指导' :
+                                        '额外指导'
+                            )
                       }
                     </h4>
                     <p className="text-xs text-gray-400">
@@ -853,6 +905,8 @@ const AdminPage: React.FC<Props> = ({ activeTab, setView, allUsers, onUserUpdate
                         setEditingPromptTemplate(null);
                         setPromptValue('');
                         setIsEditingReferencePrompt(false);
+                        setIsEditingRemakePrompt(false);
+                        setIsEditingAutoModePrompt(false);
                       }}
                       className="flex-1 py-3 bg-gray-100 text-gray-600 rounded-xl font-bold"
                     >
@@ -869,6 +923,8 @@ const AdminPage: React.FC<Props> = ({ activeTab, setView, allUsers, onUserUpdate
               ) : (
                 // 模板列表
                 <div className="space-y-6">
+
+
                   {/* AI 提示词部分 */}
                   <div>
                     <h4 className="text-sm font-bold text-gray-700 mb-3 flex items-center">
@@ -900,13 +956,12 @@ const AdminPage: React.FC<Props> = ({ activeTab, setView, allUsers, onUserUpdate
                                       <div>
                                         <h5 className="text-sm font-bold text-gray-800">
                                           {
-                                            key === 'mainPrompt' ? '核心任务提示词' :
-                                              key === 'modelModePrompt' ? '真人模特渲染模型' :
-                                                key === 'productModePrompt' ? '产品展示增强' :
-                                                  key === 'sceneGuidance' ? '环境光效指导' :
-                                                    key === 'qualityGuidance' ? '画质与精度控制' :
-                                                      key === 'additionalGuidance' ? '细节微调规则' :
-                                                        key
+                                            key === 'modelModePrompt' ? '真人模特渲染模型' :
+                                              key === 'productModePrompt' ? '产品展示增强' :
+                                                key === 'sceneGuidance' ? '环境光效指导' :
+                                                  key === 'qualityGuidance' ? '画质与精度控制' :
+                                                    key === 'additionalGuidance' ? '细节微调规则' :
+                                                      key
                                           }
                                         </h5>
                                         <span className="text-[10px] font-bold px-2 py-0.5 bg-gray-100 text-gray-400 rounded-full">
@@ -932,70 +987,117 @@ const AdminPage: React.FC<Props> = ({ activeTab, setView, allUsers, onUserUpdate
                           <p className="text-gray-400 text-sm">暂无提示词模板配置</p>
                         </div>
                       )}
+
+                      {/* 自动模式默认值 */}
+                      {config.promptTemplates?.autoModeInstructions && Object.entries(config.promptTemplates.autoModeInstructions).map(([key, value]) => (
+                        <div
+                          key={`auto-${key}`}
+                          onClick={() => {
+                            setEditingPromptTemplate(key as any);
+                            setPromptValue(value);
+                            setIsEditingReferencePrompt(false);
+                            setIsEditingRemakePrompt(false);
+                            setIsEditingAutoModePrompt(true);
+                          }}
+                          className="p-6 bg-white rounded-2xl border border-gray-200 hover:border-blue-400 cursor-pointer group transition-all"
+                        >
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <div className="flex items-center space-x-3 mb-3">
+                                <div className="p-2 bg-blue-50 text-blue-500 rounded-lg">
+                                  <Settings size={18} />
+                                </div>
+                                <div>
+                                  <h5 className="text-sm font-bold text-gray-800">
+                                    {
+                                      key === 'gender' ? '自动模式-性别逻辑' :
+                                        key === 'ageGroup' ? '自动模式-年龄逻辑' :
+                                          key === 'ethnicity' ? '自动模式-种族逻辑' :
+                                            key === 'scene' ? '自动模式-场景逻辑' :
+                                              key
+                                    }
+                                  </h5>
+                                  <span className="text-[10px] font-bold px-2 py-0.5 bg-blue-100 text-blue-500 rounded-full">
+                                    默认值
+                                  </span>
+                                </div>
+                              </div>
+                              <div className="bg-gray-50 rounded-lg p-3">
+                                <p className="text-[11px] text-gray-500 font-mono line-clamp-2">
+                                  {value}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="ml-3 text-gray-300 group-hover:text-blue-500 transition-colors">
+                              <ChevronRight size={18} />
+                            </div>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
 
-                  {/* 参考图提示词部分 */}
-                  {config.referencePromptTemplates?.enabled && (
-                    <div>
-                      <h4 className="text-sm font-bold text-gray-700 mb-3 flex items-center">
-                        <ImageIcon size={16} className="mr-2 text-purple-500" />
-                        参考图提示词
-                      </h4>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {Object.entries(config.referencePromptTemplates)
-                          .filter(([_, value]) => typeof value === 'string')
-                          .map(([key, value]) => {
-                            const templateValue = value as string;
-                            return (
-                              <div
-                                key={key}
-                                onClick={() => {
-                                  setEditingPromptTemplate(key as keyof SystemConfig['referencePromptTemplates']);
-                                  setPromptValue(templateValue);
-                                  setIsEditingReferencePrompt(true);
-                                }}
-                                className="p-6 bg-white rounded-2xl border border-gray-200 hover:border-purple-400 cursor-pointer group transition-all"
-                              >
-                                <div className="flex items-start justify-between">
-                                  <div className="flex-1">
-                                    <div className="flex items-center space-x-3 mb-3">
-                                      <div className="p-2 bg-purple-50 text-purple-500 rounded-lg">
-                                        <ImageIcon size={18} />
-                                      </div>
-                                      <div>
-                                        <h5 className="text-sm font-bold text-gray-800">
-                                          {
-                                            key === 'mainGuidance' ? '主要指导模板' :
-                                              key === 'strictMode' ? '严格模式描述' :
-                                                key === 'flexibleMode' ? '灵活模式描述' :
-                                                  key === 'elementExtraction' ? '元素提取指导' :
-                                                    key === 'criticalNotice' ? '关键提示语' :
-                                                      key
-                                          }
-                                        </h5>
-                                        <span className="text-[10px] font-bold px-2 py-0.5 bg-purple-100 text-purple-500 rounded-full">
-                                          参考图模板
-                                        </span>
-                                      </div>
-                                    </div>
-                                    <div className="bg-gray-50 rounded-lg p-3">
-                                      <p className="text-[11px] text-gray-500 font-mono line-clamp-2">
-                                        {templateValue}
-                                      </p>
-                                    </div>
+                  {/* 🔥 复刻模式提示词部分 (Tab View) - 放在底部 */}
+                  <div className="mt-8 border-t border-gray-100 pt-8">
+                    <h4 className="text-sm font-bold text-gray-700 mb-3 flex items-center">
+                      <Box size={16} className="mr-2 text-indigo-500" />
+                      复刻模式提示词 (Remake Mode)
+                    </h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {Object.entries(config.remakePrompts || INITIAL_CONFIG.remakePrompts || {}).map(([key, value]) => {
+                        const templateValue = value as string;
+                        return (
+                          <div
+                            key={key}
+                            onClick={() => {
+                              setEditingPromptTemplate(key as keyof SystemConfig['remakePrompts']);
+                              setPromptValue(templateValue);
+                              setIsEditingReferencePrompt(false);
+                              setIsEditingRemakePrompt(true);
+                            }}
+                            className="p-6 bg-white rounded-3xl border border-gray-100 shadow-sm hover:shadow-xl hover:border-indigo-400 cursor-pointer group transition-all relative overflow-hidden"
+                          >
+                            <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/5 blur-3xl rounded-full -mr-8 -mt-8 group-hover:bg-indigo-500/10 transition-colors" />
+                            <div className="flex items-start justify-between relative z-10">
+                              <div className="flex-1">
+                                <div className="flex items-center space-x-3 mb-3">
+                                  <div className="p-2.5 bg-indigo-50 text-indigo-500 rounded-xl group-hover:scale-110 transition-transform">
+                                    <Box size={20} />
                                   </div>
-                                  <div className="ml-3 text-gray-300 group-hover:text-purple-500 transition-colors">
-                                    <ChevronRight size={18} />
+                                  <div>
+                                    <h5 className="text-sm font-black text-gray-800">
+                                      {
+                                        key === 'scene' ? '背景复刻 (Background Remake)' :
+                                          key === 'pose' ? '姿态复刻 (Pose Remake)' :
+                                            key === 'complete' ? '完全复刻 (Complete Remake)' :
+                                              key
+                                      }
+                                    </h5>
+                                    <div className="flex items-center space-x-2 mt-0.5">
+                                      <span className="text-[8px] font-black px-2 py-0.5 bg-indigo-100 text-indigo-500 rounded-full uppercase tracking-tighter">Remake Prompt</span>
+                                      <span className={`text-[8px] font-black px-2 py-0.5 rounded-full uppercase tracking-tighter bg-blue-50 text-blue-500`}>
+                                        Configurable
+                                      </span>
+                                    </div>
                                   </div>
                                 </div>
+                                <div className="bg-gray-50/50 rounded-2xl p-4 border border-gray-100/50">
+                                  <p className="text-[11px] text-gray-500 leading-relaxed font-mono line-clamp-2">
+                                    {templateValue}
+                                  </p>
+                                </div>
                               </div>
-                            );
-                          })}
-                      </div>
+                              <div className="ml-4 p-2 text-gray-300 group-hover:text-indigo-500 transition-colors">
+                                <ChevronRight size={20} />
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
-                  )}
+                  </div>
                 </div>
+
               )}
             </div>
           </div>
@@ -1590,25 +1692,33 @@ const AdminPage: React.FC<Props> = ({ activeTab, setView, allUsers, onUserUpdate
                   <div className="mb-4">
                     <h4 className="text-lg font-bold text-gray-800 mb-2">
                       {
-                        isEditingReferencePrompt ? (
-                          editingPromptTemplate === 'mainGuidance' ? '主要指导模板' :
-                            editingPromptTemplate === 'strictMode' ? '严格模式描述' :
-                              editingPromptTemplate === 'flexibleMode' ? '灵活模式描述' :
-                                editingPromptTemplate === 'elementExtraction' ? '元素提取指导' :
-                                  editingPromptTemplate === 'criticalNotice' ? '关键提示语' :
-                                    editingPromptTemplate
-                        ) : (
-                          editingPromptTemplate === 'mainPrompt' ? '主提示词' :
-                            editingPromptTemplate === 'modelModePrompt' ? '真人模特模式提示词' :
-                              editingPromptTemplate === 'productModePrompt' ? '纯服装展示模式提示词' :
-                                editingPromptTemplate === 'sceneGuidance' ? '场景指导' :
-                                  editingPromptTemplate === 'qualityGuidance' ? '画质指导' :
-                                    '额外指导'
-                        )
+                        isEditingRemakePrompt ? (
+                          editingPromptTemplate === 'scene' ? '背景复刻 (Background Remake)' :
+                            editingPromptTemplate === 'pose' ? '姿态复刻 (Pose Remake)' :
+                              editingPromptTemplate === 'complete' ? '完全复刻 (Complete Remake)' :
+                                editingPromptTemplate
+                        ) :
+                          isEditingReferencePrompt ? (
+                            editingPromptTemplate === 'mainGuidance' ? '主要指导模板' :
+                              editingPromptTemplate === 'strictMode' ? '严格模式描述' :
+                                editingPromptTemplate === 'flexibleMode' ? '灵活模式描述' :
+                                  editingPromptTemplate === 'elementExtraction' ? '元素提取指导' :
+                                    editingPromptTemplate === 'criticalNotice' ? '关键提示语' :
+                                      editingPromptTemplate
+                          ) : (
+                            editingPromptTemplate === 'customMainPrompt' ? '自定义模式主提示词 (Custom Mode)' :
+                              editingPromptTemplate === 'remakeMainPrompt' ? '复刻模式主提示词 (Remake Mode)' :
+                                editingPromptTemplate === 'templateMainPrompt' ? '模板模式主提示词 (Template Mode)' :
+                                  editingPromptTemplate === 'modelModePrompt' ? '真人模特模式提示词' :
+                                    editingPromptTemplate === 'productModePrompt' ? '纯服装展示模式提示词' :
+                                      editingPromptTemplate === 'sceneGuidance' ? '场景指导' :
+                                        editingPromptTemplate === 'qualityGuidance' ? '画质指导' :
+                                          '额外指导'
+                          )
                       }
                     </h4>
                     <p className="text-xs text-gray-400">
-                      {isEditingReferencePrompt
+                      {(isEditingReferencePrompt || isEditingRemakePrompt)
                         ? `使用 {{"{{变量名}}"}} 格式插入占位符：{{mode}}, {{elements}}, {{custom_instruction}}, {{critical_notice}}`
                         : `使用 {{"{{变量名}}"}} 格式插入占位符`
                       }
@@ -1626,6 +1736,7 @@ const AdminPage: React.FC<Props> = ({ activeTab, setView, allUsers, onUserUpdate
                         setEditingPromptTemplate(null);
                         setPromptValue('');
                         setIsEditingReferencePrompt(false);
+                        setIsEditingRemakePrompt(false);
                       }}
                       className="flex-1 py-3 bg-gray-100 text-gray-600 rounded-xl font-bold"
                     >
@@ -1643,6 +1754,66 @@ const AdminPage: React.FC<Props> = ({ activeTab, setView, allUsers, onUserUpdate
                 // 模板列表
                 <div className="flex-1 overflow-y-auto">
                   <div className="space-y-6">
+                    {/* 🔥 复刻模式提示词部分 (Remake Mode Prompts) */}
+                    <div className="mb-8 border-b border-gray-100 pb-8">
+                      <h4 className="text-sm font-bold text-gray-700 mb-3 flex items-center">
+                        <Box size={16} className="mr-2 text-indigo-500" />
+                        复刻模式提示词 (Remake Mode)
+                      </h4>
+                      <div className="space-y-3">
+                        {Object.entries(config.remakePrompts || INITIAL_CONFIG.remakePrompts || {}).map(([key, value]) => {
+                          const templateValue = value as string;
+                          return (
+                            <div
+                              key={key}
+                              onClick={() => {
+                                setEditingPromptTemplate(key as keyof SystemConfig['remakePrompts']);
+                                setPromptValue(templateValue);
+                                setIsEditingReferencePrompt(false);
+                                setIsEditingRemakePrompt(true);
+                              }}
+                              className="p-6 bg-white rounded-3xl border border-gray-100 shadow-sm hover:shadow-xl hover:border-indigo-400 cursor-pointer group transition-all relative overflow-hidden"
+                            >
+                              <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/5 blur-3xl rounded-full -mr-8 -mt-8 group-hover:bg-indigo-500/10 transition-colors" />
+                              <div className="flex items-start justify-between relative z-10">
+                                <div className="flex-1">
+                                  <div className="flex items-center space-x-3 mb-3">
+                                    <div className="p-2.5 bg-indigo-50 text-indigo-500 rounded-xl group-hover:scale-110 transition-transform">
+                                      <Box size={20} />
+                                    </div>
+                                    <div>
+                                      <h5 className="text-sm font-black text-gray-800">
+                                        {
+                                          key === 'scene' ? '背景复刻 (Background Remake)' :
+                                            key === 'pose' ? '姿态复刻 (Pose Remake)' :
+                                              key === 'complete' ? '完全复刻 (Complete Remake)' :
+                                                key
+                                        }
+                                      </h5>
+                                      <div className="flex items-center space-x-2 mt-0.5">
+                                        <span className="text-[8px] font-black px-2 py-0.5 bg-indigo-100 text-indigo-500 rounded-full uppercase tracking-tighter">Remake Prompt</span>
+                                        <span className={`text-[8px] font-black px-2 py-0.5 rounded-full uppercase tracking-tighter bg-blue-50 text-blue-500`}>
+                                          Configurable
+                                        </span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <div className="bg-gray-50/50 rounded-2xl p-4 border border-gray-100/50">
+                                    <p className="text-[11px] text-gray-500 leading-relaxed font-mono line-clamp-2">
+                                      {templateValue}
+                                    </p>
+                                  </div>
+                                </div>
+                                <div className="ml-4 p-2 text-gray-300 group-hover:text-indigo-500 transition-colors">
+                                  <ChevronRight size={20} />
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
                     {/* AI 提示词部分 */}
                     <div>
                       <h4 className="text-sm font-bold text-gray-700 mb-3 flex items-center">
@@ -1675,13 +1846,14 @@ const AdminPage: React.FC<Props> = ({ activeTab, setView, allUsers, onUserUpdate
                                         <div>
                                           <h5 className="text-sm font-black text-gray-800">
                                             {
-                                              key === 'mainPrompt' ? '核心任务提示词 (Main Strategy)' :
-                                                key === 'modelModePrompt' ? '真人模特渲染模型 (Model Engine)' :
-                                                  key === 'productModePrompt' ? '产品展示增强 (Product Logic)' :
-                                                    key === 'sceneGuidance' ? '环境光效指导 (Atmosphere)' :
-                                                      key === 'qualityGuidance' ? '画质与精度控制 (Resolution)' :
-                                                        key === 'additionalGuidance' ? '细节微调规则 (Fine-tuning)' :
-                                                          key
+                                              key === 'customMainPrompt' ? '自定义模式主提示词 (Custom Mode)' :
+                                                key === 'templateMainPrompt' ? '模板模式主提示词 (Template Mode)' :
+                                                  key === 'modelModePrompt' ? '真人模特渲染模型 (Model Engine)' :
+                                                    key === 'productModePrompt' ? '产品展示增强 (Product Logic)' :
+                                                      key === 'sceneGuidance' ? '环境光效指导 (Atmosphere)' :
+                                                        key === 'qualityGuidance' ? '画质与精度控制 (Resolution)' :
+                                                          key === 'additionalGuidance' ? '细节微调规则 (Fine-tuning)' :
+                                                            key
                                             }
                                           </h5>
                                           <div className="flex items-center space-x-2 mt-0.5">
@@ -1777,6 +1949,9 @@ const AdminPage: React.FC<Props> = ({ activeTab, setView, allUsers, onUserUpdate
                         </div>
                       </div>
                     )}
+
+
+
 
                     {/* 🔥 Vision 分析提示词部分 */}
 

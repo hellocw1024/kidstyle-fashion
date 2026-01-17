@@ -42,20 +42,20 @@ export const CustomMode: React.FC<CustomModeProps> = ({
 
     // 模特展示参数
     const [modelDisplayParams, setModelDisplayParams] = useState({
-        pose: 'standing',
-        scene: 'studio',
-        composition: 'full_body',
-        style: 'realistic',
+        pose: '',
+        scene: '',
+        composition: '',
+        style: '',
         quality: 'standard', // 降低默认质量以提高速度
         ratio: '3:4'
     });
 
     // 纯服装展示参数
     const [pureClothingParams, setPureClothingParams] = useState({
-        style: 'minimalist',
-        background: 'white',
+        style: '',
+        background: '',
         angle: 'front',
-        focus: 'detail',
+        focus: '',
         quality: 'standard',
         ratio: '1:1'
     });
@@ -99,13 +99,12 @@ export const CustomMode: React.FC<CustomModeProps> = ({
                     <div className="p-4">
                         <FileUploader
                             label="点击上传服装图"
-                            onFileSelect={(file) => {
+                            onUpload={(file) => {
                                 setClothingImage(file);
                                 if (onClothingUpload) onClothingUpload(file);
                             }}
-                            selectedFile={clothingImage}
                             accept="image/*"
-                            height={200}
+                            validationType="clothing"
                         />
                     </div>
                 </Card>
@@ -136,10 +135,9 @@ export const CustomMode: React.FC<CustomModeProps> = ({
                                 <div className="animate-in fade-in zoom-in-95 duration-300">
                                     <FileUploader
                                         label="上传自定义模特图"
-                                        onFileSelect={setModelImage}
-                                        selectedFile={modelImage}
+                                        onUpload={setModelImage}
                                         accept="image/*"
-                                        height={180}
+                                        validationType="model"
                                     />
                                 </div>
                             )}
@@ -230,11 +228,13 @@ export const CustomMode: React.FC<CustomModeProps> = ({
                                 value={modelDisplayParams}
                                 onChange={(val) => setModelDisplayParams(val)}
                                 models={models}
+                                config={config}
                             />
                         ) : (
                             <PureClothingParams
                                 value={pureClothingParams}
                                 onChange={(val) => setPureClothingParams(val)}
+                                config={config}
                             />
                         )}
                     </div>

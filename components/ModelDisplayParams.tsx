@@ -16,8 +16,8 @@ export function ModelDisplayParams({ value, onChange, models = [], config }: Mod
         ratio: '3:4',
         quality: '2K',
         model: '',
-        scene: '简约摄影棚（纯色背景）',
-        style: '可爱风',
+        scene: '',
+        style: '',
         pose: ''
     };
 
@@ -78,6 +78,7 @@ export function ModelDisplayParams({ value, onChange, models = [], config }: Mod
                         onChange={(e) => handleChange({ ...currentValue, scene: e.target.value })}
                         className="w-full px-4 py-3 bg-white border-2 border-gray-200 rounded-xl text-sm font-semibold text-gray-700 focus:border-rose-400 outline-none transition-all"
                     >
+                        <option value="">默认</option>
                         {currentConfig.scenes.map((scene) => (
                             <option key={scene} value={scene}>
                                 {scene}
@@ -93,6 +94,7 @@ export function ModelDisplayParams({ value, onChange, models = [], config }: Mod
                         onChange={(e) => handleChange({ ...currentValue, style: e.target.value })}
                         className="w-full px-4 py-3 bg-white border-2 border-gray-200 rounded-xl text-sm font-semibold text-gray-700 focus:border-rose-400 outline-none transition-all"
                     >
+                        <option value="">默认</option>
                         {currentConfig.styles.map((style) => (
                             <option key={style} value={style}>
                                 {style}
@@ -135,6 +137,36 @@ export function ModelDisplayParams({ value, onChange, models = [], config }: Mod
                         ))}
                     </select>
                 </div>
+            </div>
+
+            {/* 构图选择（可选） */}
+            <div className="space-y-2">
+                <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">构图（可选）</label>
+                <select
+                    value={currentValue.composition || ''}
+                    onChange={(e) => handleChange({ ...currentValue, composition: e.target.value })}
+                    className="w-full px-4 py-3 bg-white border-2 border-gray-200 rounded-xl text-sm font-semibold text-gray-700 focus:border-rose-400 outline-none transition-all"
+                >
+                    <option value="">默认</option>
+                    {currentConfig.compositions.map((comp) => (
+                        <option key={comp} value={comp}>
+                            {comp}
+                        </option>
+                    ))}
+                </select>
+            </div>
+
+            {/* 🔥 高级自定义 (Advanced Customization) */}
+            <div className="space-y-2 pt-2 border-t border-gray-100">
+                <label className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center">
+                    <span className="mr-1">✨</span> 高级自定义 (Advanced)
+                </label>
+                <textarea
+                    value={currentValue.advancedDetail || ''}
+                    onChange={(e) => handleChange({ ...currentValue, advancedDetail: e.target.value })}
+                    placeholder="在此添加更多细节描述：例如模特妆容（红唇、雀斑）、发型（卷发、马尾）、配饰（帽子、围巾）或其他具体要求..."
+                    className="w-full px-4 py-3 bg-white border-2 border-gray-200 rounded-xl text-sm text-gray-700 focus:border-rose-400 outline-none transition-all min-h-[80px] resize-none"
+                />
             </div>
         </div>
     );
