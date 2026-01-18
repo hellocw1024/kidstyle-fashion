@@ -135,7 +135,9 @@ CRITICAL: The CLOTHING must come from the uploaded clothing images, but the STYL
   const defaultAge = params.modelImage ? 'Match age of the model in the provided photo' : instructions.ageGroup;
   const defaultEthnicity = params.modelImage ? 'Match ethnicity of the model in the provided photo' : instructions.ethnicity;
 
-  const genderInstruction = params.gender ? (params.gender === 'boy' ? 'boy' : 'girl') : defaultGender;
+  const genderInstruction = params.gender
+    ? (['boy', 'male'].includes(params.gender.toLowerCase()) ? 'boy' : 'girl')
+    : defaultGender;
   const ageInstruction = params.ageGroup || defaultAge;
   const ethnicityInstruction = params.ethnicity || defaultEthnicity;
 

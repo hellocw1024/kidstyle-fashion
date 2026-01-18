@@ -131,8 +131,13 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
       const modelFile = currentParameters.modelImage;
 
       // Convert Files to URLs/Base64 if necessary
-      const clothingUrl = clothingFile ? URL.createObjectURL(clothingFile) : undefined;
-      const modelUrl = modelFile ? URL.createObjectURL(modelFile) : undefined;
+      const clothingUrl = clothingFile
+        ? (clothingFile instanceof File ? URL.createObjectURL(clothingFile) : clothingFile)
+        : undefined;
+
+      const modelUrl = modelFile
+        ? (modelFile instanceof File ? URL.createObjectURL(modelFile) : modelFile)
+        : undefined;
 
       const result = await generateClothingImage({
         style: currentParameters.modelDisplayParams?.style,

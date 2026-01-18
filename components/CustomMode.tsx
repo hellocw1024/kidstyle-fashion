@@ -36,7 +36,7 @@ export const CustomMode: React.FC<CustomModeProps> = ({
     const [selectedModelId, setSelectedModelId] = useState<string>('');
 
     // AI 模特筛选
-    const [filterGender, setFilterGender] = useState<string>('female'); // 默认选中女性
+    const [filterGender, setFilterGender] = useState<string>('girl'); // 默认选中女性
     const [filterAgeGroup, setFilterAgeGroup] = useState<string>('3-5'); // 默认 3-5 岁
     const [filterEthnicity, setFilterEthnicity] = useState<string>('asian'); // 默认亚洲
 
@@ -63,15 +63,39 @@ export const CustomMode: React.FC<CustomModeProps> = ({
     const [modelLibraryModal, setModelLibraryModal] = useState(false);
 
     const handleGenerate = () => {
+        // Find the selected model object if in library mode
+        const selectedModel = modelSource === 'library' && selectedModelId
+            ? models.find(m => m.id === selectedModelId)
+            : null;
+
+        // If library mode, use the model's URL as modelImage (passed as string/file to upstream)
+        // Note: The parent component expects modelImage to be File | undefined usually, but geminiService handles string URLs too.
+        // However, GenerationPage.tsx converts modelImage (File) to URL. We might need to handle this carefully.
+        // Actually, GenerationPage.tsx line 135: const modelUrl = modelFile ? URL.createObjectURL(modelFile) : undefined;
+        // It expects a File object. Constructing a dummy File or passing the URL via a different param might be needed.
+        // BUT, looking at CustomMode props, onGenerate takes `any`.
+        // Let's pass the URL directly in a way GenerationPage can handle, or relies on GenerationPage to handle string vs File.
+
+        // Let's check pure logic:
+        // For AI mode: use filters.
+        // For Upload/Library: do NOT use filters.
+
         onGenerate({
             type: 'custom',
             source: modelSource,
             clothingImage,
-            modelImage: modelSource === 'library' && selectedModelId ? undefined : modelImage,
+            // For library, we pass the URL. For upload, we pass the File. 
+            // We need to ensure GenerationPage handles this mixed type or we resolve it here.
+            // Current GenerationPage expects 'modelImage' to be used for preview and generation.
+            modelImage: modelSource === 'library' ? selectedModel?.url : modelImage,
             modelId: modelSource === 'library' ? selectedModelId : undefined,
-            gender: filterGender,
-            ageGroup: filterAgeGroup,
-            ethnicity: filterEthnicity,
+
+            // 🔥 CRITICAL FIX: Only pass gender/age/ethnicity if we are asking AI to generate a person from scratch (AI mode).
+            // If we provide a reference image (Upload or Library), we leave these EMPTY so the AI strictly follows the image.
+            gender: modelSource === 'ai' ? filterGender : undefined,
+            ageGroup: modelSource === 'ai' ? filterAgeGroup : undefined,
+            ethnicity: modelSource === 'ai' ? filterEthnicity : undefined,
+
             modelDisplayParams,
             pureClothingParams
         });
@@ -153,8 +177,8 @@ export const CustomMode: React.FC<CustomModeProps> = ({
                                                 value={filterGender}
                                                 onChange={(e) => setFilterGender(e.target.value)}
                                             >
-                                                <option value="female">👧 女童</option>
-                                                <option value="male">👦 男童</option>
+                                                <option value="girl">👧 女童</option>
+                                                <option value="boy">👦 男童</option>
                                             </select>
                                         </div>
                                         <div className="space-y-1">
@@ -287,10 +311,10 @@ export const CustomMode: React.FC<CustomModeProps> = ({
                                         setModelLibraryModal(false);
                                     }}
                                     className="h-full"
-                                    // Optional: Pass pre-filled filters if we want sync
-                                    filterGender={filterGender !== 'all' ? filterGender : undefined}
-                                    filterAgeGroup={filterAgeGroup !== 'all' ? filterAgeGroup : undefined}
-                                    filterEthnicity={filterEthnicity !== 'all' ? filterEthnicity : undefined}
+                                // Optional: Pass pre-filled filters if we want sync
+                                // filterGender={filterGender !== 'all' ? filterGender : undefined}
+                                // filterAgeGroup={filterAgeGroup !== 'all' ? filterAgeGroup : undefined}
+                                // filterEthnicity={filterEthnicity !== 'all' ? filterEthnicity : undefined}
                                 />
                             </div>
                         </div>
