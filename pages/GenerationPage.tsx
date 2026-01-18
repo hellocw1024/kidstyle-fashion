@@ -48,11 +48,11 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
       ...params,
       // Map params to service format if necessary
       type: displayType === 'model' ? 'MODEL' : 'PRODUCT',
-      style: params?.modelDisplayParams?.style || 'natural',
+      style: params?.modelDisplayParams?.style,
       quality: '4K',
       scene: params?.modelDisplayParams?.scene,
       gender: params?.gender,
-      ageGroup: params?.ageGroup || '3-5',
+      ageGroup: params?.ageGroup,
       ethnicity: params?.ethnicity,
       pose: params?.modelDisplayParams?.pose,
       composition: params?.modelDisplayParams?.composition,
@@ -135,11 +135,11 @@ const GenerationPage: React.FC<GenerationPageProps> = ({
       const modelUrl = modelFile ? URL.createObjectURL(modelFile) : undefined;
 
       const result = await generateClothingImage({
-        style: currentParameters.modelDisplayParams?.style, // Remove || 'natural'
+        style: currentParameters.modelDisplayParams?.style,
         type: displayType === 'model' ? 'MODEL' : 'PRODUCT',
         ageGroup: currentParameters.ageGroup,
-        gender: currentParameters.gender, // Remove || 'girl'
-        ethnicity: currentParameters.ethnicity, // Remove || 'asian'
+        gender: currentParameters.gender,
+        ethnicity: currentParameters.ethnicity,
         scene: currentParameters.modelDisplayParams?.scene,
         quality: '4K',
         aspectRatio: currentParameters.modelDisplayParams?.ratio || '3:4',

@@ -139,7 +139,7 @@ CRITICAL: The CLOTHING must come from the uploaded clothing images, but the STYL
   const ageInstruction = params.ageGroup || defaultAge;
   const ethnicityInstruction = params.ethnicity || defaultEthnicity;
 
-  // 🔥 4. 智能抑制逻辑 (Smart Suppression)
+  // 🔥 智能抑制逻辑 (Smart Suppression)
   // 如果是复刻模式 (scene/complete) 或 自定义模式下勾选了 "Background" 提取
   const isRemakeScene =
     params.referenceConfig?.remakeMode === 'scene' ||
@@ -152,19 +152,29 @@ CRITICAL: The CLOTHING must come from the uploaded clothing images, but the STYL
     params.referenceConfig?.remakeMode === 'complete' ||
     params.referenceConfig?.extractElements?.pose === true;
 
+  // 🌟 智能自动选择指令 (AI Auto-Selection)
+  // 当用户未选择 (undefined/null/empty) 时，注入指令让 AI 根据服装自动决定
+  const autoScene = "Automatically select the most suitable scene that fits the clothing style (e.g., street, park, studio).";
+  const autoStyle = "Automatically detect the clothing style (e.g., casual, elegant, sporty) and apply a matching photographic style.";
+  const autoPose = "Choose a natural, dynamic pose that best showcases the clothing details.";
+  const autoEmotion = "Select a natural emotion that fits the overall vibe of the clothing and scene.";
+  const autoComposition = "Use the best composition to highlight the clothing features.";
+
   // 如果是复刻背景，强制忽略默认的场景描述（避免 "Studio" vs "Park" 冲突）
-  const targetScene = isRemakeScene ? 'Use background from reference image' : (params.scene || instructions.scene);
+  const targetScene = isRemakeScene ? 'Use background from reference image' : (params.scene || autoScene);
+  const targetStyle = params.style || autoStyle;
 
   // 如果是复刻姿态，强制忽略默认姿态
-  const targetPose = isRemakePose ? 'Use pose from reference image' : (params.pose || '');
-  const targetComposition = isRemakePose ? 'Use composition from reference image' : (params.composition || '');
+  const targetPose = isRemakePose ? 'Use pose from reference image' : (params.pose || autoPose);
+  const targetComposition = isRemakePose ? 'Use composition from reference image' : (params.composition || autoComposition);
+  const targetEmotion = params.emotion || autoEmotion;
 
   modePrompt = modePrompt.replace(/{{gender}}/g, genderInstruction)
     .replace(/{{ageGroup}}/g, ageInstruction)
     .replace(/{{ethnicity}}/g, ethnicityInstruction)
     .replace(/{{ethnicity}}/g, ethnicityInstruction)
     .replace(/{{pose}}/g, targetPose)
-    .replace(/{{emotion}}/g, params.emotion ? `Match emotion: ${params.emotion}` : '')  // 🔥 替换 emotion
+    .replace(/{{emotion}}/g, targetEmotion)  // 🔥 替换 emotion
     .replace(/{{composition}}/g, targetComposition)
     .replace(/{{productForm}}/g, params.productForm || '')
     .replace(/{{productFocus}}/g, params.productFocus || '')
@@ -177,13 +187,13 @@ CRITICAL: The CLOTHING must come from the uploaded clothing images, but the STYL
   let customInfo = params.customPrompt ? additionalGuidance.replace(/{{customPrompt}}/g, params.customPrompt) : '';
 
   // === 组装最终提示词 ===
-  let prompt = mainPrompt.replace(/{{style}}/g, params.style)
+  let prompt = mainPrompt.replace(/{{style}}/g, targetStyle)
     .replace(/{{quality}}/g, params.quality)
-    .replace(/{{scene}}/g, params.scene ? params.scene : instructions.scene)
+    .replace(/{{scene}}/g, targetScene)
     .replace(/{{mode_prompt}}/g, modePrompt)
     .replace(/{{scene_guidance}}/g, sceneInfo)
     .replace(/{{custom_prompt}}/g, customInfo)
-    .replace(/{{emotion}}/g, params.emotion || ''); // 🔥 修复：在主模板中替换 emotion
+    .replace(/{{emotion}}/g, targetEmotion); // 🔥 修复：在主模板中替换 emotion
 
   // 🔥 添加参考图指导（放在最前面，确保AI优先理解）
   if (referenceGuidance) {

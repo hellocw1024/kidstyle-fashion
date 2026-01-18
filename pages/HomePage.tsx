@@ -134,8 +134,8 @@ export const HomePage: React.FC<HomePageProps> = ({
         const prompt = buildPrompt({
             ...params,
             type: displayType === 'model' ? 'MODEL' : 'PRODUCT',
-            style: params?.modelDisplayParams?.style || params?.pureClothingParams?.style || 'natural',
-            quality: params?.modelDisplayParams?.quality || params?.pureClothingParams?.quality || '2K',
+            style: params?.modelDisplayParams?.style || params?.pureClothingParams?.style,
+            quality: params?.modelDisplayParams?.quality || params?.pureClothingParams?.quality || '4K',
             scene: params?.modelDisplayParams?.scene,
             gender: params?.gender,
             ageGroup: params?.ageGroup,
